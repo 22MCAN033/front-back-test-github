@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build Backend Docker Image
         run: |
@@ -35,7 +35,7 @@ jobs:
           echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" >> frontend_build_tag.txt
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: docker-build-tags
           path: |
@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: docker-build-tags
           path: ./build_artifacts
