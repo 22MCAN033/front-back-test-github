@@ -22,8 +22,8 @@ jobs:
           BUILD_TAG="build-${{ github.run_id }}"
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "Building backend image..."
-          sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
-          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" >> backend_build_tag.txt
+          docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
+          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" >> ../backend_build_tag.txt
 
       - name: Build Frontend Docker Image
         run: |
@@ -31,8 +31,8 @@ jobs:
           BUILD_TAG="build-${{ github.run_id }}"
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "Building frontend image..."
-          sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
-          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" >> frontend_build_tag.txt
+          docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
+          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" >> ../frontend_build_tag.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -55,13 +55,16 @@ jobs:
           name: docker-build-tags
           path: ./build_artifacts
 
-      - name: Copy Frontend & Backend files to EC2
+      - name: Copy Frontend, Backend & Artifacts to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./frontend/* ./backend/*"
+          source: |
+            ./frontend/*
+            ./backend/*
+            ./build_artifacts/*
           target: "~/app"
 
       - name: Build & Run Frontend & Backend on EC2
