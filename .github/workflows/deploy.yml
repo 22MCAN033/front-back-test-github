@@ -65,18 +65,21 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Generate build tags
+            BUILD_TAG="build-${{ github.run_id }}"
+            
             # ------------------- FRONTEND -------------------
             cd ~/app/frontend
-            FRONTEND_TAG=$(grep FRONTEND_BUILD_TAG ~/app/frontend_build_tag.txt | cut -d '=' -f2)
-            sudo docker build -t frontend-app:${FRONTEND_TAG} .
+            sudo docker build -t frontend-app:${BUILD_TAG} .
             sudo docker stop frontend || true
             sudo docker rm frontend || true
-            sudo docker run -d -p 3000:3000 --name frontend frontend-app:${FRONTEND_TAG}
+            sudo docker run -d -p 3000:3000 --name frontend frontend-app:${BUILD_TAG}
+            
             # ------------------- BACKEND -------------------
             cd ~/app/backend
-            BACKEND_TAG=$(grep BACKEND_BUILD_TAG ~/app/backend_build_tag.txt | cut -d '=' -f2)
-            sudo docker build -t backend-app:${BACKEND_TAG} .
+            sudo docker build -t backend-app:${BUILD_TAG} .
             sudo docker stop backend || true
             sudo docker rm backend || true
-            sudo docker run -d -p 5000:5000 --name backend backend-app:${BACKEND_TAG}
+            sudo docker run -d -p 5000:5000 --name backend backend-app:${BUILD_TAG}
+            
             echo "✅ Deployment complete: Frontend & Backend running on EC2"
