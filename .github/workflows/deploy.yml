@@ -7,7 +7,7 @@ on:
 
 jobs:
 
-  # ------------------- BUILD PHASE ------------------
+  # ------------------- BUILD PHASE -------------------
   build:
     name: Build Docker Images (Frontend & Backend)
     runs-on: ubuntu-latest
@@ -38,9 +38,9 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: docker-build-tags
-          path:
-            - backend_build_tag.txt
-            - frontend_build_tag.txt
+          path: |
+            backend_build_tag.txt
+            frontend_build_tag.txt
 
   # ------------------- DEPLOY PHASE -------------------
   deploy:
@@ -61,10 +61,8 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: |
-            frontend/
-            backend/
-          target: ~/app
+          source: "./frontend/* ./backend/*"
+          target: "~/app"
 
       - name: Build & Run Frontend & Backend on EC2
         uses: appleboy/ssh-action@v1.0.0
