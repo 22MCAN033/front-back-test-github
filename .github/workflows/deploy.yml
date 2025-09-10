@@ -31,10 +31,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/app/frontend
-            docker build -t frontend-app .
-            docker stop frontend || true
-            docker rm frontend || true
-            docker run -d -p 3000:3000 --name frontend frontend-app
+            sudo docker build -t frontend-app .
+            sudo docker stop frontend || true
+            sudo docker rm frontend || true
+            sudo docker run -d -p 3000:3000 --name frontend frontend-app
 
   backend:
     name: Deploy Backend
@@ -62,7 +62,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/app/backend
-            docker build -t backend-app .
-            docker stop backend || true
-            docker rm backend || true
-            docker run -d -p 5000:5000 --name backend backend-app
+            sudo docker build -t backend-app .
+            sudo docker stop backend || true
+            sudo docker rm backend || true
+            sudo docker run -d -p 5000:5000 --name backend backend-app
