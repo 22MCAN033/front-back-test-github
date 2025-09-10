@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+
 jobs:
   # ------------------- BUILD PHASE -------------------
   build:
@@ -11,6 +12,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
       - name: Build Backend Docker Image
         run: |
           cd backend
@@ -18,22 +23,17 @@ jobs:
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "Building backend image..."
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
-          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > ../backend_build_tag.txt
+          echo "✅ Backend build completed successfully"
+          
       - name: Build Frontend Docker Image
         run: |
           cd frontend
           BUILD_TAG="build-${{ github.run_id }}"
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "Building frontend image..."
-          docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TAG} -t frontend-app:${BUILD_TAG} .
-          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > ../frontend_build_tag.txt
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-build-tags
-          path: |
-            backend_build_tag.txt
-            frontend_build_tag.txt
+          docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
+          echo "✅ Frontend build completed successfully"
+
   # ------------------- DEPLOY PHASE -------------------
   deploy:
     name: Deploy Frontend & Backend to EC2
@@ -42,44 +42,99 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-build-tags
-          path: ./build_artifacts
-      - name: Copy Frontend, Backend & Artifacts to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: |
-            frontend
-            backend
-            build_artifacts
-          target: "~/app"
-      - name: Build & Run Frontend & Backend on EC2
+        
+      - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Generate build tags
+            # Create app directory
+            mkdir -p ~/app
+            cd ~/app
+            
+            # Clone or update repository
+            if [ -d ".git" ]; then
+              echo "🔄 Updating existing repository..."
+              git fetch origin
+              git reset --hard origin/main
+              git pull origin main
+            else
+              echo "📥 Cloning repository..."
+              git clone https://github.com/${{ github.repository }}.git .
+            fi
+            
+            # Generate build tag and timestamp
             BUILD_TAG="build-${{ github.run_id }}"
+            BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
+            echo "🏗️ Starting deployment with Build Tag: ${BUILD_TAG}"
             
-            # ------------------- FRONTEND -------------------
-            cd ~/app/frontend
-            sudo docker build -t frontend-app:${BUILD_TAG} .
-            sudo docker stop frontend || true
-            sudo docker rm frontend || true
-            sudo docker run -d -p 3000:3000 --name frontend frontend-app:${BUILD_TAG}
+            # ------------------- BACKEND DEPLOYMENT -------------------
+            if [ -d "backend" ]; then
+              echo "🚀 Deploying Backend..."
+              cd ~/app/backend
+              
+              # Build backend image
+              sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
+              
+              # Stop and remove existing backend container
+              sudo docker stop backend 2>/dev/null || echo "No existing backend container to stop"
+              sudo docker rm backend 2>/dev/null || echo "No existing backend container to remove"
+              
+              # Run new backend container
+              sudo docker run -d -p 5000:5000 --name backend --restart unless-stopped backend-app:${BUILD_TAG}
+              
+              # Verify backend is running
+              if sudo docker ps | grep -q "backend"; then
+                echo "✅ Backend deployed successfully and running on port 5000"
+              else
+                echo "❌ Backend deployment failed"
+                exit 1
+              fi
+            else
+              echo "❌ Backend directory not found in repository"
+              exit 1
+            fi
             
-            # ------------------- BACKEND -------------------
-            cd ~/app/backend
-            sudo docker build -t backend-app:${BUILD_TAG} .
-            sudo docker stop backend || true
-            sudo docker rm backend || true
-            sudo docker run -d -p 5000:5000 --name backend backend-app:${BUILD_TAG}
+            # ------------------- FRONTEND DEPLOYMENT -------------------
+            if [ -d "frontend" ]; then
+              echo "🚀 Deploying Frontend..."
+              cd ~/app/frontend
+              
+              # Build frontend image
+              sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
+              
+              # Stop and remove existing frontend container
+              sudo docker stop frontend 2>/dev/null || echo "No existing frontend container to stop"
+              sudo docker rm frontend 2>/dev/null || echo "No existing frontend container to remove"
+              
+              # Run new frontend container
+              sudo docker run -d -p 3000:3000 --name frontend --restart unless-stopped frontend-app:${BUILD_TAG}
+              
+              # Verify frontend is running
+              if sudo docker ps | grep -q "frontend"; then
+                echo "✅ Frontend deployed successfully and running on port 3000"
+              else
+                echo "❌ Frontend deployment failed"
+                exit 1
+              fi
+            else
+              echo "❌ Frontend directory not found in repository"
+              exit 1
+            fi
             
-            echo "✅ Deployment complete: Frontend & Backend running on EC2"
+            # ------------------- DEPLOYMENT SUMMARY -------------------
+            echo ""
+            echo "🎉 DEPLOYMENT COMPLETED SUCCESSFULLY! 🎉"
+            echo "==========================================="
+            echo "📦 Build Tag: ${BUILD_TAG}"
+            echo "⏰ Build Timestamp: ${BUILD_TIMESTAMP}"
+            echo "🌐 Frontend: http://$(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_EC2_IP'):3000"
+            echo "🔧 Backend: http://$(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_EC2_IP'):5000"
+            echo ""
+            echo "📊 Running Containers:"
+            sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo ""
+            echo "💾 Docker Images:"
+            sudo docker images | grep -E "(frontend-app|backend-app)" | head -5
