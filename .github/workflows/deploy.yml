@@ -67,14 +67,14 @@ jobs:
           script: |
             # ------------------- FRONTEND -------------------
             cd ~/app/frontend
-            FRONTEND_TAG=$(grep FRONTEND_BUILD_TAG ~/app/build_artifacts/frontend_build_tag.txt | cut -d '=' -f2)
+            FRONTEND_TAG=$(grep FRONTEND_BUILD_TAG ~/app/frontend_build_tag.txt | cut -d '=' -f2)
             sudo docker build -t frontend-app:${FRONTEND_TAG} .
             sudo docker stop frontend || true
             sudo docker rm frontend || true
             sudo docker run -d -p 3000:3000 --name frontend frontend-app:${FRONTEND_TAG}
             # ------------------- BACKEND -------------------
             cd ~/app/backend
-            BACKEND_TAG=$(grep BACKEND_BUILD_TAG ~/app/build_artifacts/backend_build_tag.txt | cut -d '=' -f2)
+            BACKEND_TAG=$(grep BACKEND_BUILD_TAG ~/app/backend_build_tag.txt | cut -d '=' -f2)
             sudo docker build -t backend-app:${BACKEND_TAG} .
             sudo docker stop backend || true
             sudo docker rm backend || true
