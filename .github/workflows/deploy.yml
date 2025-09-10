@@ -23,7 +23,7 @@ jobs:
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "Building backend image..."
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
-          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" >> ../backend_build_tag.txt
+          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > ../backend_build_tag.txt
 
       - name: Build Frontend Docker Image
         run: |
@@ -32,7 +32,7 @@ jobs:
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "Building frontend image..."
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
-          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" >> ../frontend_build_tag.txt
+          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > ../frontend_build_tag.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -76,7 +76,7 @@ jobs:
           script: |
             # ------------------- FRONTEND -------------------
             cd ~/app/frontend
-            FRONTEND_TAG=$(cat ~/app/build_artifacts/frontend_build_tag.txt | grep FRONTEND_BUILD_TAG | cut -d '=' -f2)
+            FRONTEND_TAG=$(grep FRONTEND_BUILD_TAG ~/app/build_artifacts/frontend_build_tag.txt | cut -d '=' -f2)
             sudo docker build -t frontend-app:${FRONTEND_TAG} .
             sudo docker stop frontend || true
             sudo docker rm frontend || true
@@ -84,7 +84,7 @@ jobs:
 
             # ------------------- BACKEND -------------------
             cd ~/app/backend
-            BACKEND_TAG=$(cat ~/app/build_artifacts/backend_build_tag.txt | grep BACKEND_BUILD_TAG | cut -d '=' -f2)
+            BACKEND_TAG=$(grep BACKEND_BUILD_TAG ~/app/build_artifacts/backend_build_tag.txt | cut -d '=' -f2)
             sudo docker build -t backend-app:${BACKEND_TAG} .
             sudo docker stop backend || true
             sudo docker rm backend || true
