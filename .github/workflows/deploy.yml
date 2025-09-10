@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - prod   # agar prod branch bhi use karna hai
 
 jobs:
 
@@ -16,21 +15,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-
-      - name: Set Environment Variables Based on Branch
-        run: |
-          BRANCH_NAME=${GITHUB_REF##*/}
-
-          if [ "$BRANCH_NAME" = "main" ]; then
-            echo "ENVIRONMENT=dev" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_HOST_DEV }}" >> $GITHUB_ENV
-          elif [ "$BRANCH_NAME" = "prod" ]; then
-            echo "ENVIRONMENT=prod" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_HOST_PROD }}" >> $GITHUB_ENV
-          else
-            echo "Unsupported branch: $BRANCH_NAME"
-            exit 1
-          fi
 
       - name: Build Backend Docker Image
         run: |
@@ -62,7 +46,7 @@ jobs:
   deploy:
     name: Deploy Frontend & Backend to EC2
     runs-on: ubuntu-latest
-    needs: build   # build ke baad hi deploy chalega
+    needs: build
 
     steps:
       - name: Download build artifacts
@@ -74,7 +58,7 @@ jobs:
       - name: Copy Frontend & Backend files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: |
@@ -85,7 +69,7 @@ jobs:
       - name: Build & Run Frontend & Backend on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
