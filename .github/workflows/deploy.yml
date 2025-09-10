@@ -1,23 +1,18 @@
 name: CI/CD Pipeline - Frontend & Backend (Direct EC2)
-
 on:
   push:
     branches:
       - main
-
 jobs:
   # ------------------- BUILD PHASE ------------------
   build:
     name: Build Docker Images (Frontend & Backend)
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build Backend Docker Image
         run: |
           cd backend
@@ -27,7 +22,6 @@ jobs:
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
           echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > ../backend_build_tag.txt
           echo "✅ Backend build completed successfully"
-
       - name: Build Frontend Docker Image
         run: |
           cd frontend
@@ -37,7 +31,6 @@ jobs:
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
           echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > ../frontend_build_tag.txt
           echo "✅ Frontend build completed successfully"
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -45,20 +38,17 @@ jobs:
           path: |
             backend_build_tag.txt
             frontend_build_tag.txt
-
   # ------------------- DEPLOY PHASE -------------------
   deploy:
     name: Deploy Frontend & Backend to EC2
     runs-on: ubuntu-latest
     needs: build
-
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: docker-build-tags
           path: ./build_artifacts
-
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -71,16 +61,13 @@ jobs:
             rm -rf ~/app
             mkdir -p ~/app
             cd ~/app
-
             # Clone repository
             echo "📥 Cloning repository..."
             git clone https://github.com/${{ github.repository }}.git .
-
             # Generate build tag
             BUILD_TAG="build-${{ github.run_id }}"
             BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
             echo "🏗️ Starting deployment with Build Tag: ${BUILD_TAG}"
-
             # ------------------- BACKEND DEPLOYMENT -------------------
             echo "🚀 Deploying Backend..."
             cd ~/app/backend
@@ -89,7 +76,6 @@ jobs:
             sudo docker rm backend 2>/dev/null || true
             sudo docker run -d -p 5000:5000 --name backend --restart unless-stopped backend-app:${BUILD_TAG}
             echo "✅ Backend deployed successfully"
-
             # ------------------- FRONTEND DEPLOYMENT -------------------
             echo "🚀 Deploying Frontend..."
             cd ~/app/frontend
@@ -98,5 +84,4 @@ jobs:
             sudo docker rm frontend 2>/dev/null || true
             sudo docker run -d -p 3000:3000 --name frontend --restart unless-stopped frontend-app:${BUILD_TAG}
             echo "✅ Frontend deployed successfully"
-
             # ------------
