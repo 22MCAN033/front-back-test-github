@@ -22,12 +22,12 @@ jobs:
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
           echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > ../backend_build_tag.txt
           echo "✅ Backend build completed successfully"
-      - name: Build Frontend Docker Image
+      - name: Build Frontend Docker Image (Static HTML with Nginx)
         run: |
           cd frontend
           BUILD_TAG="build-${{ github.run_id }}"
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          echo "Building frontend image..."
+          echo "Building frontend (static HTML) image..."
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
           echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > ../frontend_build_tag.txt
           echo "✅ Frontend build completed successfully"
@@ -68,6 +68,7 @@ jobs:
             BUILD_TAG="build-${{ github.run_id }}"
             BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
             echo "🏗️ Starting deployment with Build Tag: ${BUILD_TAG}"
+
             # ------------------- BACKEND DEPLOYMENT -------------------
             echo "🚀 Deploying Backend..."
             cd ~/app/backend
@@ -76,12 +77,12 @@ jobs:
             sudo docker rm backend 2>/dev/null || true
             sudo docker run -d -p 5000:5000 --name backend --restart unless-stopped backend-app:${BUILD_TAG}
             echo "✅ Backend deployed successfully"
-            # ------------------- FRONTEND DEPLOYMENT -------------------
-            echo "🚀 Deploying Frontend..."
+
+            # ------------------- FRONTEND DEPLOYMENT (STATIC HTML) -------------------
+            echo "🚀 Deploying Frontend (Static HTML)..."
             cd ~/app/frontend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
             sudo docker stop frontend 2>/dev/null || true
             sudo docker rm frontend 2>/dev/null || true
-            sudo docker run -d -p 3000:3000 --name frontend --restart unless-stopped frontend-app:${BUILD_TAG}
+            sudo docker run -d -p 3000:80 --name frontend --restart unless-stopped frontend-app:${BUILD_TAG}
             echo "✅ Frontend deployed successfully"
-            # ------------
