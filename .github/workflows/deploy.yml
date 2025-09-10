@@ -3,66 +3,106 @@ name: CI/CD Pipeline - Frontend & Backend (Direct EC2)
 on:
   push:
     branches:
-      - main   # sirf main branch pe push hone par chalega
+      - main
+      - prod   # agar prod branch bhi use karna hai
 
 jobs:
-  frontend:
-    name: Deploy Frontend
+
+  # ------------------- BUILD PHASE -------------------
+  build:
+    name: Build Docker Images (Frontend & Backend)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Copy Frontend files to EC2
+      - name: Set Environment Variables Based on Branch
+        run: |
+          BRANCH_NAME=${GITHUB_REF##*/}
+
+          if [ "$BRANCH_NAME" = "main" ]; then
+            echo "ENVIRONMENT=dev" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_HOST_DEV }}" >> $GITHUB_ENV
+          elif [ "$BRANCH_NAME" = "prod" ]; then
+            echo "ENVIRONMENT=prod" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_HOST_PROD }}" >> $GITHUB_ENV
+          else
+            echo "Unsupported branch: $BRANCH_NAME"
+            exit 1
+          fi
+
+      - name: Build Backend Docker Image
+        run: |
+          cd backend
+          BUILD_TAG="build-${{ github.run_id }}"
+          BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          echo "Building backend image..."
+          sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
+          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" >> backend_build_tag.txt
+
+      - name: Build Frontend Docker Image
+        run: |
+          cd frontend
+          BUILD_TAG="build-${{ github.run_id }}"
+          BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          echo "Building frontend image..."
+          sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
+          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" >> frontend_build_tag.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-build-tags
+          path:
+            - backend_build_tag.txt
+            - frontend_build_tag.txt
+
+  # ------------------- DEPLOY PHASE -------------------
+  deploy:
+    name: Deploy Frontend & Backend to EC2
+    runs-on: ubuntu-latest
+    needs: build   # build ke baad hi deploy chalega
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-build-tags
+          path: ./build_artifacts
+
+      - name: Copy Frontend & Backend files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./frontend/*"
-          target: "~/app/frontend"
+          source: |
+            ./frontend/*
+            ./backend/*
+          target: "~/app"
 
-      - name: Build & Run Frontend on EC2
+      - name: Build & Run Frontend & Backend on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # ------------------- FRONTEND -------------------
             cd ~/app/frontend
-            sudo docker build -t frontend-app .
+            FRONTEND_TAG=$(cat ~/app/build_artifacts/frontend_build_tag.txt | grep FRONTEND_BUILD_TAG | cut -d '=' -f2)
+            sudo docker build -t frontend-app:${FRONTEND_TAG} .
             sudo docker stop frontend || true
             sudo docker rm frontend || true
-            sudo docker run -d -p 3000:3000 --name frontend frontend-app
+            sudo docker run -d -p 3000:3000 --name frontend frontend-app:${FRONTEND_TAG}
 
-  backend:
-    name: Deploy Backend
-    runs-on: ubuntu-latest
-    needs: frontend   # frontend ke baad backend chalega
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Copy Backend files to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./backend/*"
-          target: "~/app/backend"
-
-      - name: Build & Run Backend on EC2
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
+            # ------------------- BACKEND -------------------
             cd ~/app/backend
-            sudo docker build -t backend-app .
+            BACKEND_TAG=$(cat ~/app/build_artifacts/backend_build_tag.txt | grep BACKEND_BUILD_TAG | cut -d '=' -f2)
+            sudo docker build -t backend-app:${BACKEND_TAG} .
             sudo docker stop backend || true
             sudo docker rm backend || true
-            sudo docker run -d -p 5000:5000 --name backend backend-app
+            sudo docker run -d -p 5000:5000 --name backend backend-app:${BACKEND_TAG}
+
+            echo "✅ Deployment complete: Frontend & Backend running on EC2"
