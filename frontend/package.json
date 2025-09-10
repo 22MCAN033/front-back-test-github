@@ -1,14 +1,13 @@
 {
   "name": "frontend",
   "version": "1.0.0",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "react-scripts start",
-    "build": "react-scripts build"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "serve": "npx serve -s build"
   },
   "dependencies": {
-    "express": "^4.18.2",
     "react-scripts": "^5.0.1"
   }
 }
