@@ -41,7 +41,6 @@ jobs:
             echo "backend_port=0" >> $GITHUB_OUTPUT
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
-          fi
 
   build:
     name: Build Docker Images on EC2
@@ -91,14 +90,15 @@ jobs:
           key: ${{ env.SSH_KEY }}
           script: |
             set -ex
-            cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
+            APP_DIR="/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}"
+            cd $APP_DIR
 
             BUILD_TAG="${{ needs.setup.outputs.container_prefix }}-${{ github.run_id }}"
             BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
 
-            echo "${BUILD_TAG}" > ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
-            echo "${ENVIRONMENT}" > ~/environment_${{ needs.setup.outputs.container_prefix }}.txt
+            echo "${BUILD_TAG}" > /home/ubuntu/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
+            echo "${ENVIRONMENT}" > /home/ubuntu/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
             echo "🏗️ Building Backend..."
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t backend-app:${BUILD_TAG} .
@@ -141,20 +141,14 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ env.SSH_KEY }}
+          env:
+            BUILD_TAG: ${{ needs.setup.outputs.container_prefix }}-${{ github.run_id }}
+            CONTAINER_PREFIX: ${{ needs.setup.outputs.container_prefix }}
+            ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+            BACKEND_PORT: ${{ needs.setup.outputs.backend_port }}
+            FRONTEND_PORT: ${{ needs.setup.outputs.frontend_port }}
           script: |
             set -ex
-            BRANCH_NAME=${GITHUB_REF#refs/heads/}
-            if [[ "$BRANCH_NAME" == "main" ]]; then
-              CONTAINER_PREFIX="prod"
-            else
-              CONTAINER_PREFIX="dev"
-            fi
-
-            BUILD_TAG=$(cat ~/build_tag_${CONTAINER_PREFIX}.txt)
-            BACKEND_PORT=${{ needs.setup.outputs.backend_port }}
-            FRONTEND_PORT=${{ needs.setup.outputs.frontend_port }}
-            ENVIRONMENT="${{ needs.setup.outputs.environment }}"
-
             echo "🚀 Deploying containers..."
             sudo docker stop ${CONTAINER_PREFIX}-backend || true
             sudo docker rm ${CONTAINER_PREFIX}-backend || true
@@ -196,6 +190,8 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ env.SSH_KEY }}
+          env:
+            CONTAINER_PREFIX: ${{ needs.setup.outputs.container_prefix }}
           script: |
             echo "🧹 Cleaning up old Docker images..."
             sudo docker images backend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi backend-app:{} || true
