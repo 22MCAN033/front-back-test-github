@@ -47,8 +47,7 @@ jobs:
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
             echo "⚠️ Branch not recognized, skipping deploy"
-          fi
-
+  
   # ------------------- BUILD PHASE --------------
   build:
     name: Build Docker Images on EC2
@@ -73,11 +72,13 @@ jobs:
             --secret-id "vaibhav/dev/secret" \
             --query SecretString \
             --output text)
+          
+          # Extract, fix newlines, and save key
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $RUNNER_TEMP/ssh_key.pem
           chmod 600 $RUNNER_TEMP/ssh_key.pem
-          echo "SSH_KEY<<'EOF'" >> $GITHUB_ENV
-          cat $RUNNER_TEMP/ssh_key.pem >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          
+          # Export the key path for actions
+          echo "SSH_KEY_PATH=$RUNNER_TEMP/ssh_key.pem" >> $GITHUB_ENV
 
       - name: Set Build Variables
         id: vars
@@ -92,8 +93,8 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.SSH_KEY }}
-          source: "."  # repo files
+          key_path: ${{ env.SSH_KEY_PATH }}
+          source: "."
           target: "/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
           overwrite: true
@@ -104,7 +105,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.SSH_KEY }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           script: |
             set -ex
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
@@ -145,7 +146,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.SSH_KEY }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           script: |
             set -ex
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
@@ -200,7 +201,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.SSH_KEY }}
+          key_path: ${{ env.SSH_KEY_PATH }}
           script: |
             echo "🧹 Cleaning up old Docker images..."
             
