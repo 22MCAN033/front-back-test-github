@@ -36,11 +36,13 @@ jobs:
             echo "backend_port=${{ secrets.DEV_BACKEND_PORT }}" >> $GITHUB_OUTPUT
             echo "frontend_port=${{ secrets.DEV_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
             echo "container_prefix=dev" >> $GITHUB_OUTPUT
+            
           else
             echo "environment=unknown" >> $GITHUB_OUTPUT
             echo "backend_port=0" >> $GITHUB_OUTPUT
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
+          fi
 
   build:
     name: Build Docker Images on EC2
