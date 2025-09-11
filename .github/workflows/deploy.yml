@@ -1,4 +1,5 @@
 name: CI/CD Pipeline - Frontend & Backend (Direct EC2)
+
 on:
   push:
     branches:
@@ -16,25 +17,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Backend Docker Image
+      - name: Create build tags
         run: |
-          cd backend
           BUILD_TAG="build-${{ github.run_id }}"
-          BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          echo "Building backend image..."
-          docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
-          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > ../backend_build_tag.txt
-          echo " Backend build completed successfully"
-
-      - name: Build Frontend Docker Image (Static HTML with Nginx)
-        run: |
-          cd frontend
-          BUILD_TAG="build-${{ github.run_id }}"
-          BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          echo "Building frontend (static HTML) image..."
-          docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
-          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > ../frontend_build_tag.txt
-          echo " Frontend build completed successfully"
+          echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > backend_build_tag.txt
+          echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > frontend_build_tag.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -50,42 +37,49 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: docker-build-tags
           path: ./build_artifacts
 
-      - name: Deploy to EC2 via SSH
+      - name: Send source code to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "."
+          target: "~/app"
+
+      - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # ------------------- PREPARE EC2 -------------------
-            echo " Cleaning old app directory..."
-            rm -rf ~/app
-            mkdir -p ~/app
             cd ~/app
-
-            # Generate build tag
             BUILD_TAG="build-${{ github.run_id }}"
             BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
+
             echo " Starting deployment with Build Tag: ${BUILD_TAG}"
 
-            # ------------------- BACKEND DEPLOYMENT -------------------
+            # ------------------- BACKEND -------------------
             echo " Deploying Backend..."
-            cd ~/app/backend
+            cd backend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
             sudo docker stop backend 2>/dev/null || true
             sudo docker rm backend 2>/dev/null || true
             sudo docker run -d -p 5000:5000 --name backend --restart unless-stopped backend-app:${BUILD_TAG}
-            echo "Backend deployed successfully"
+            echo " Backend deployed successfully"
 
-            # ------------------- FRONTEND DEPLOYMENT (STATIC HTML) -------------------
-            echo " Deploying Frontend (Static HTML)..."
-            cd ~/app/frontend
+            # ------------------- FRONTEND -------------------
+            echo " Deploying Frontend..."
+            cd ../frontend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
             sudo docker stop frontend 2>/dev/null || true
             sudo docker rm frontend 2>/dev/null || true
