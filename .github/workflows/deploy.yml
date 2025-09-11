@@ -28,13 +28,13 @@ jobs:
 
           if [[ "$BRANCH_NAME" == "main" ]]; then
             echo "environment=production" >> $GITHUB_OUTPUT
-            echo "backend_port=${{ secrets.BACKEND_PORT }}" >> $GITHUB_OUTPUT
-            echo "frontend_port=${{ secrets.FRONTEND_PORT }}" >> $GITHUB_OUTPUT
+            echo "backend_port=${{ secrets.PROD_BACKEND_PORT }}" >> $GITHUB_OUTPUT
+            echo "frontend_port=${{ secrets.PROD_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
             echo "container_prefix=prod" >> $GITHUB_OUTPUT
           elif [[ "$BRANCH_NAME" == "dev" ]]; then
             echo "environment=development" >> $GITHUB_OUTPUT
-            echo "backend_port=${{ secrets.BACKEND_PORT }}" >> $GITHUB_OUTPUT
-            echo "frontend_port=${{ secrets.FRONTEND_PORT }}" >> $GITHUB_OUTPUT
+            echo "backend_port=${{ secrets.DEV_BACKEND_PORT }}" >> $GITHUB_OUTPUT
+            echo "frontend_port=${{ secrets.DEV_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
             echo "container_prefix=dev" >> $GITHUB_OUTPUT
           else
             echo "environment=unknown" >> $GITHUB_OUTPUT
@@ -62,18 +62,12 @@ jobs:
         id: fetch_ssh
         run: |
           echo "🔑 Fetching EC2 SSH Key..."
-          
-          # Get the secret and extract SSH key with proper newline handling
           SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
             --query SecretString \
             --output text)
-          
-          # Extract SSH key and handle newlines properly  
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
           chmod 600 $HOME/ssh_key.pem
-          
-          # Verify the key format
           echo "✅ SSH key saved to $HOME/ssh_key.pem"
           head -1 $HOME/ssh_key.pem
           tail -1 $HOME/ssh_key.pem
@@ -111,7 +105,6 @@ jobs:
             BUILD_TIMESTAMP="${{ env.BUILD_TIMESTAMP }}"
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
 
-            # Store build info for deploy stage
             echo "${BUILD_TAG}" > ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
             echo "${ENVIRONMENT}" > ~/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
@@ -143,17 +136,12 @@ jobs:
       - name: Fetch EC2 SSH Key for Deploy
         run: |
           echo "🔑 Fetching EC2 SSH Key for deployment..."
-          
-          # Get the secret and extract SSH key with proper newline handling
           SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
             --query SecretString \
             --output text)
-          
-          # Extract SSH key and handle newlines properly
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
           chmod 600 $HOME/ssh_key.pem
-          
           echo "✅ SSH key ready for deployment"
 
       - name: Deploy Containers on EC2
@@ -164,34 +152,42 @@ jobs:
           key_path: $HOME/ssh_key.pem
           script: |
             set -ex
-            BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
-            ENVIRONMENT=$(cat ~/environment_${{ needs.setup.outputs.container_prefix }}.txt)
-            CONTAINER_PREFIX="${{ needs.setup.outputs.container_prefix }}"
-            BACKEND_PORT="${{ secrets.BACKEND_PORT }}"
-            FRONTEND_PORT="${{ secrets.FRONTEND_PORT }}"
+            BRANCH_NAME=${GITHUB_REF#refs/heads/}
+            echo "Branch for deployment: $BRANCH_NAME"
+
+            if [[ "$BRANCH_NAME" == "main" ]]; then
+              ENVIRONMENT="production"
+              BACKEND_PORT=${{ secrets.PROD_BACKEND_PORT }}
+              FRONTEND_PORT=${{ secrets.PROD_FRONTEND_PORT }}
+              CONTAINER_PREFIX="prod"
+            elif [[ "$BRANCH_NAME" == "dev" ]]; then
+              ENVIRONMENT="development"
+              BACKEND_PORT=${{ secrets.DEV_BACKEND_PORT }}
+              FRONTEND_PORT=${{ secrets.DEV_FRONTEND_PORT }}
+              CONTAINER_PREFIX="dev"
+            else
+              echo "❌ Unknown branch, skipping deploy."
+              exit 0
+            fi
+
+            BUILD_TAG=$(cat ~/build_tag_${CONTAINER_PREFIX}.txt)
 
             echo "🚀 Deploying ${ENVIRONMENT} environment"
             echo "Build Tag: ${BUILD_TAG}"
             echo "Container Prefix: ${CONTAINER_PREFIX}"
 
-            # Backend Deployment
             echo "Deploying Backend..."
             sudo docker stop ${CONTAINER_PREFIX}-backend || true
             sudo docker rm ${CONTAINER_PREFIX}-backend || true
             sudo docker run -d -p ${BACKEND_PORT}:5000 --name ${CONTAINER_PREFIX}-backend --restart unless-stopped -e NODE_ENV=${ENVIRONMENT} backend-app:${BUILD_TAG}
             sleep 10
 
-            # Frontend Deployment  
             echo "Deploying Frontend..."
             sudo docker stop ${CONTAINER_PREFIX}-frontend || true
             sudo docker rm ${CONTAINER_PREFIX}-frontend || true
             sudo docker run -d -p ${FRONTEND_PORT}:80 --name ${CONTAINER_PREFIX}-frontend --restart unless-stopped -e ENVIRONMENT=${ENVIRONMENT} frontend-app:${BUILD_TAG}
             sleep 10
 
-            # Verification
             echo "Verifying deployments..."
             sudo docker ps | grep ${CONTAINER_PREFIX}
-
             echo "🎉 Deployment completed successfully!"
-            echo "Backend running on port: ${BACKEND_PORT}"
-            echo "Frontend running on port: ${FRONTEND_PORT}"
