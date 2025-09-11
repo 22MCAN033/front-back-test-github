@@ -58,11 +58,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Fetch EC2 SSH Key from Secrets Manager
+      - name: Fetch EC2 SSH Key from Secrets Manager (Verbose)
         id: fetch_ssh
         run: |
-          echo "Fetching EC2 SSH Key..."
-          aws secretsmanager get-secret-value \
+          set -x
+          echo "🔑 Fetching EC2 SSH Key with verbose output..."
+          aws --debug secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
             --query SecretString \
             --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/EC2_SSH_KEY.pem
@@ -77,7 +78,7 @@ jobs:
           echo "BUILD_TAG=${BUILD_TAG}" >> $GITHUB_ENV
           echo "BUILD_TIMESTAMP=${BUILD_TIMESTAMP}" >> $GITHUB_ENV
 
-      - name: Send Source Code to EC2
+      - name: Send Source Code to EC2 (Verbose)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -86,8 +87,11 @@ jobs:
           source: "."
           target: "/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
+          overwrite: true
+          strip_components: 0
+          debug: true
 
-      - name: Build Docker Images on EC2
+      - name: Build Docker Images on EC2 (Verbose)
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -95,7 +99,7 @@ jobs:
           key: $HOME/EC2_SSH_KEY.pem
           ssh_args: "-vvv"
           script: |
-            set -e
+            set -ex
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
             BUILD_TAG="${{ env.BUILD_TAG }}"
             BUILD_TIMESTAMP="${{ env.BUILD_TIMESTAMP }}"
@@ -129,16 +133,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Fetch EC2 SSH Key for Deploy
+      - name: Fetch EC2 SSH Key for Deploy (Verbose)
         run: |
-          aws secretsmanager get-secret-value \
+          set -x
+          aws --debug secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
             --query SecretString \
             --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/EC2_SSH_KEY.pem
           chmod 600 $HOME/EC2_SSH_KEY.pem
           echo "✅ SSH key ready for deployment"
 
-      - name: Deploy Containers on EC2
+      - name: Deploy Containers on EC2 (Verbose)
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -146,7 +151,7 @@ jobs:
           key: $HOME/EC2_SSH_KEY.pem
           ssh_args: "-vvv"
           script: |
-            set -e
+            set -ex
             BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
             ENVIRONMENT=$(cat ~/environment_${{ needs.setup.outputs.container_prefix }}.txt)
             CONTAINER_PREFIX="${{ needs.setup.outputs.container_prefix }}"
