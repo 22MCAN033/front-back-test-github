@@ -47,6 +47,7 @@ jobs:
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
             echo "⚠️ Branch not recognized, skipping deploy"
+          fi
 
   # ------------------- BUILD PHASE ----------------
   build:
