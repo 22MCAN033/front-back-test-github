@@ -66,10 +66,12 @@ jobs:
             --secret-id "vaibhav/dev/secret" \
             --query SecretString \
             --output text)
-          echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > ssh_key.pem
-          chmod 600 ssh_key.pem
+          # Save SSH key in safe temporary directory
+          echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $RUNNER_TEMP/ssh_key.pem
+          chmod 600 $RUNNER_TEMP/ssh_key.pem
+          # Save key content into GITHUB_ENV for appleboy actions
           echo "SSH_KEY<<EOF" >> $GITHUB_ENV
-          cat ssh_key.pem >> $GITHUB_ENV
+          cat $RUNNER_TEMP/ssh_key.pem >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Set Build Variables
@@ -85,8 +87,8 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.SSH_KEY }}   # ✅ Use inline key instead of file path
-          source: "."
+          key: ${{ env.SSH_KEY }}       # ✅ Use inline key
+          source: "."                  # repo files
           target: "/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
           overwrite: true
@@ -97,7 +99,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.SSH_KEY }}   # ✅ Use inline key
+          key: ${{ env.SSH_KEY }}       # ✅ Use inline key
           script: |
             set -ex
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
@@ -133,25 +135,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Fetch EC2 SSH Key for Deploy
-        run: |
-          echo "🔑 Fetching EC2 SSH Key for deployment..."
-          SECRET_JSON=$(aws secretsmanager get-secret-value \
-            --secret-id "vaibhav/dev/secret" \
-            --query SecretString \
-            --output text)
-          echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > ssh_key.pem
-          chmod 600 ssh_key.pem
-          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
-          cat ssh_key.pem >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
       - name: Deploy Containers on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.SSH_KEY }}   # ✅ Use inline key
+          key: ${{ env.SSH_KEY }}       # ✅ Use inline key
           script: |
             set -ex
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
