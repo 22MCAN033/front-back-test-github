@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+
 jobs:
   # ------------------- BUILD PHASE ----------------
   build:
@@ -11,8 +12,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Build Backend Docker Image
         run: |
           cd backend
@@ -22,6 +25,7 @@ jobs:
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
           echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > ../backend_build_tag.txt
           echo " Backend build completed successfully"
+
       - name: Build Frontend Docker Image (Static HTML with Nginx)
         run: |
           cd frontend
@@ -31,6 +35,7 @@ jobs:
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
           echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > ../frontend_build_tag.txt
           echo " Frontend build completed successfully"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -38,6 +43,7 @@ jobs:
           path: |
             backend_build_tag.txt
             frontend_build_tag.txt
+
   # ------------------- DEPLOY PHASE -------------------
   deploy:
     name: Deploy Frontend & Backend to EC2
@@ -49,6 +55,7 @@ jobs:
         with:
           name: docker-build-tags
           path: ./build_artifacts
+
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -61,9 +68,7 @@ jobs:
             rm -rf ~/app
             mkdir -p ~/app
             cd ~/app
-            # Clone repository
-            echo " Cloning repository..."
-            git clone https://github.com/${{ github.repository }}.git .
+
             # Generate build tag
             BUILD_TAG="build-${{ github.run_id }}"
             BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
