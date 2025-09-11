@@ -242,6 +242,7 @@ jobs:
           else
             echo "SUBJECT=⚠️ CI/CD Deployment Completed - UNKNOWN BRANCH" >> $GITHUB_ENV
             echo "BODY=CI/CD pipeline ran on an unknown branch: $BRANCH_NAME." >> $GITHUB_ENV
+          fi
 
 
       - name: Send Email
