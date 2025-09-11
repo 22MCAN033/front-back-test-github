@@ -220,7 +220,15 @@ jobs:
           key: ${{ env.SSH_KEY }}
           script: |
             echo "🧹 Cleaning up old Docker images..."
-            sudo docker images backend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi backend-app:{} || true
-            sudo docker images frontend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi frontend-app:{} || true
-            sudo docker image prune -f
+            # Backend - dev
+            sudo docker images backend-app --format "{{.Tag}}" | grep '^dev-' | tail -n +3 | xargs -r -I {} sudo docker rmi backend-app:{} || true
+            
+            # Backend - prod
+            sudo docker images backend-app --format "{{.Tag}}" | grep '^prod-' | tail -n +3 | xargs -r -I {} sudo docker rmi backend-app:{} || true
+            
+            # Frontend - dev
+            sudo docker images frontend-app --format "{{.Tag}}" | grep '^dev-' | tail -n +3 | xargs -r -I {} sudo docker rmi frontend-app:{} || true
+            
+            # Frontend - prod
+            sudo docker images frontend-app --format "{{.Tag}}" | grep '^prod-' | tail -n +3 | xargs -r -I {} sudo docker rmi frontend-app:{} || true
             echo "✅ Cleanup completed!"
