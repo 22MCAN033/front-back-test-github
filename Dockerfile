@@ -1,16 +1,19 @@
+# Root Dockerfile for backend
 FROM node:18
+
 WORKDIR /app
 
-# Copy package.json from backend directory
-COPY backend/package.json .
+# Copy backend folder content into container
+COPY backend/ . 
 
-# Copy package-lock.json if it exists
-COPY backend/package-lock.json* ./
-
+# Install dependencies
 RUN npm install
 
-# Copy all backend source code
-COPY backend/ .
+# Copy source code if needed (optional)
+COPY backend/ . 
 
+# Expose port
 EXPOSE 5000
+
+# Start the app
 CMD ["npm", "start"]
