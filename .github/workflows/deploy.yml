@@ -4,7 +4,7 @@ on:
     branches:
       - main
 jobs:
-  # ------------------- BUILD PHASE -----------------
+  # ------------------- BUILD PHASE ----------------
   build:
     name: Build Docker Images (Frontend & Backend)
     runs-on: ubuntu-latest
