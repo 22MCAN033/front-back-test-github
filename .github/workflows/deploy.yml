@@ -16,8 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.config.outputs.environment }}
-      backend_port: ${{ steps.config.outputs.backend_port }}
-      frontend_port: ${{ steps.config.outputs.frontend_port }}
       container_prefix: ${{ steps.config.outputs.container_prefix }}
     steps:
       - name: Set Environment Configuration
@@ -28,18 +26,12 @@ jobs:
 
           if [[ "$BRANCH_NAME" == "main" ]]; then
             echo "environment=production" >> $GITHUB_OUTPUT
-            echo "backend_port=5000" >> $GITHUB_OUTPUT
-            echo "frontend_port=3000" >> $GITHUB_OUTPUT
             echo "container_prefix=prod" >> $GITHUB_OUTPUT
           elif [[ "$BRANCH_NAME" == "dev" ]]; then
             echo "environment=development" >> $GITHUB_OUTPUT
-            echo "backend_port=5001" >> $GITHUB_OUTPUT
-            echo "frontend_port=3001" >> $GITHUB_OUTPUT
             echo "container_prefix=dev" >> $GITHUB_OUTPUT
           else
             echo "environment=unknown" >> $GITHUB_OUTPUT
-            echo "backend_port=0" >> $GITHUB_OUTPUT
-            echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
           fi
 
@@ -66,9 +58,9 @@ jobs:
             --secret-id "vaibhav-secret" \
             --query "SecretString" --output text | jq -r '.EC2_SSH_KEY')
           
-          echo "$EC2_SSH_KEY" > key.pem
-          chmod 600 key.pem
-          echo "✅ SSH key prepared with proper permissions"
+          echo "$EC2_SSH_KEY" > EC2_SSH_KEY.pem
+          chmod 600 EC2_SSH_KEY.pem
+          echo "✅ SSH key prepared with proper permissions as EC2_SSH_KEY.pem"
 
       - name: Set Build Variables
         id: vars
@@ -84,7 +76,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: EC2_SSH_KEY.pem
           source: "."
           target: "~/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
@@ -94,7 +86,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: EC2_SSH_KEY.pem
           script: |
             set -e
             cd ~/app-${{ needs.setup.outputs.container_prefix }}
@@ -135,23 +127,23 @@ jobs:
           export EC2_SSH_KEY=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
             --query "SecretString" --output text | jq -r '.EC2_SSH_KEY')
-          echo "$EC2_SSH_KEY" > key.pem
-          chmod 600 key.pem
-          echo "✅ SSH key ready for deployment"
+          echo "$EC2_SSH_KEY" > EC2_SSH_KEY.pem
+          chmod 600 EC2_SSH_KEY.pem
+          echo "✅ SSH key ready for deployment as EC2_SSH_KEY.pem"
 
       - name: Deploy Containers on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: EC2_SSH_KEY.pem
           script: |
             set -e
             BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
             ENVIRONMENT=$(cat ~/environment_${{ needs.setup.outputs.container_prefix }}.txt)
             CONTAINER_PREFIX="${{ needs.setup.outputs.container_prefix }}"
-            BACKEND_PORT="${{ needs.setup.outputs.backend_port }}"
-            FRONTEND_PORT="${{ needs.setup.outputs.frontend_port }}"
+            BACKEND_PORT="${{ secrets.BACKEND_PORT }}"
+            FRONTEND_PORT="${{ secrets.FRONTEND_PORT }}"
 
             echo "🚀 Deploying ${ENVIRONMENT} environment"
 
