@@ -150,9 +150,8 @@ jobs:
             BUILD_TAG=$(cat $APP_DIR/build_tag_${CONTAINER_PREFIX}.txt)
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
   
-            # Export ports from GitHub secrets (already available on runner)
-            export BACKEND_PORT=${{ secrets.PROD_BACKEND_PORT }}
-            export FRONTEND_PORT=${{ secrets.PROD_FRONTEND_PORT }}
+            BACKEND_PORT=${{ needs.setup.outputs.backend_port }}
+            FRONTEND_PORT=${{ needs.setup.outputs.frontend_port }}
   
             echo "🚀 Deploying containers on ports Backend:${BACKEND_PORT} Frontend:${FRONTEND_PORT}..."
   
@@ -171,7 +170,6 @@ jobs:
               --restart unless-stopped \
               -e ENVIRONMENT=${ENVIRONMENT} \
               frontend-app:${BUILD_TAG}
-
 
   cleanup:
     name: Cleanup Old Images
@@ -206,7 +204,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ env.SSH_KEY }}
           script: |
-            echo " Cleaning up old Docker images..."
+            echo "🧹 Cleaning up old Docker images..."
             sudo docker images backend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi backend-app:{} || true
             sudo docker images frontend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi frontend-app:{} || true
             sudo docker image prune -f
