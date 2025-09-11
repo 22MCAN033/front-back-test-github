@@ -95,17 +95,16 @@ jobs:
             echo "🔨 Building images for ${ENVIRONMENT} environment"
             echo "📦 Build Tag: ${BUILD_TAG}"
             
-            # Backend Build
+            # Backend Build (root directory)
             echo "🏗️  Building Backend..."
-            cd backend
             sudo docker build --no-cache \
               --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
               --build-arg ENVIRONMENT=${ENVIRONMENT} \
               -t backend-app:${BUILD_TAG} .
             
-            # Frontend Build  
+            # Frontend Build (frontend folder)
             echo "🏗️  Building Frontend..."
-            cd ../frontend
+            cd frontend
             sudo docker build --no-cache \
               --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
               --build-arg ENVIRONMENT=${ENVIRONMENT} \
