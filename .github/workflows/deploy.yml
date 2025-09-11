@@ -232,3 +232,42 @@ jobs:
             # Frontend - prod
             sudo docker images frontend-app --format "{{.Tag}}" | grep '^prod-' | tail -n +3 | xargs -r -I {} sudo docker rmi frontend-app:{} || true
             echo "✅ Cleanup completed!"
+
+
+ notify:
+  name: Send Deployment Completion Email
+  runs-on: ubuntu-latest
+  needs: cleanup
+  if: always()
+  steps:
+    - name: Set Email Content
+      id: email_content
+      run: |
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+
+        if [[ "$BRANCH_NAME" == "main" ]]; then
+          SUBJECT="✅ CI/CD Deployment Completed - PRODUCTION"
+          BODY="Hi Team,\n\nThe CI/CD pipeline for branch **main** has successfully completed.\n\nEnvironment: production\nBackend Port: ${{ needs.setup.outputs.backend_port }}\nFrontend Port: ${{ needs.setup.outputs.frontend_port }}\nContainer Prefix: prod\n\nBuild & Deployment Details:\n- Backend Docker Tag: ${{ needs.build.outputs.backend_tag || 'N/A' }}\n- Frontend Docker Tag: ${{ needs.build.outputs.frontend_tag || 'N/A' }}\n\nBest,\nGitHub Actions"
+        elif [[ "$BRANCH_NAME" == "dev" ]]; then
+          SUBJECT="✅ CI/CD Deployment Completed - DEVELOPMENT"
+          BODY="Hi Team,\n\nThe CI/CD pipeline for branch **dev** has successfully completed.\n\nEnvironment: development\nBackend Port: ${{ needs.setup.outputs.backend_port }}\nFrontend Port: ${{ needs.setup.outputs.frontend_port }}\nContainer Prefix: dev\n\nBuild & Deployment Details:\n- Backend Docker Tag: ${{ needs.build.outputs.backend_tag || 'N/A' }}\n- Frontend Docker Tag: ${{ needs.build.outputs.frontend_tag || 'N/A' }}\n\nBest,\nGitHub Actions"
+        else
+          SUBJECT="⚠️ CI/CD Deployment Completed - UNKNOWN BRANCH"
+          BODY="Hi Team,\n\nThe CI/CD pipeline ran on an unknown branch: $BRANCH_NAME.\n\nBest,\nGitHub Actions"
+        fi
+
+        echo "SUBJECT=${SUBJECT}" >> $GITHUB_ENV
+        echo "BODY=${BODY}" >> $GITHUB_ENV
+
+    - name: Send Email
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 465
+        username: ${{ secrets.EMAIL_USER }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: ${{ env.SUBJECT }}
+        body: ${{ env.BODY }}
+        to: "team@example.com"
+        from: "GitHub Actions <${{ secrets.EMAIL_USER }}>"
+        secure: true
