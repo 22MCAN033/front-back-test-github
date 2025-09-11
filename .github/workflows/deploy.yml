@@ -85,13 +85,6 @@ jobs:
           echo "✅ EC2_HOST: $EC2_HOST"
           echo "✅ EC2_SSH_KEY (first 30 chars): ${EC2_SSH_KEY:0:30}..."
 
-      # ------------------- PREPARE SSH KEY ----------------
-      - name: Prepare SSH Key
-        run: |
-          echo "$EC2_SSH_KEY" > key.pem
-          chmod 600 key.pem
-          echo "✅ SSH key prepared with proper permissions"
-
       # ------------------- SET BUILD VARIABLES ----------------
       - name: Set Build Variables
         id: vars
@@ -111,7 +104,7 @@ jobs:
         with:
           host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: ${{ env.EC2_SSH_KEY }}
           source: "."
           target: "~/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
@@ -122,13 +115,17 @@ jobs:
         with:
           host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: ${{ env.EC2_SSH_KEY }}
           script: |
             set -e
             cd ~/app-${{ needs.setup.outputs.container_prefix }}
             BUILD_TAG="${{ env.BUILD_TAG }}"
             BUILD_TIMESTAMP="${{ env.BUILD_TIMESTAMP }}"
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
+
+            # Store build info for deploy stage
+            echo "${BUILD_TAG}" > ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
+            echo "${ENVIRONMENT}" > ~/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
             echo "🏗️  Building Backend..."
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t backend-app:${BUILD_TAG} .
@@ -148,12 +145,40 @@ jobs:
     environment: 
       name: ${{ needs.setup.outputs.environment }}
     steps:
+      # ------------------- CONFIGURE AWS ----------------
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
+      # ------------------- FETCH SECRETS FOR DEPLOY ----------------
+      - name: Fetch EC2 Secrets for Deploy
+        run: |
+          echo "Fetching secrets from AWS Secrets Manager..."
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id vaibhav-secret \
+            --query SecretString \
+            --output text)
+
+          # Export as GitHub environment variables
+          EC2_HOST=$(echo $SECRET_JSON | jq -r .EC2_HOST)
+          EC2_SSH_KEY=$(echo $SECRET_JSON | jq -r .EC2_SSH_KEY)
+
+          echo "EC2_HOST=${EC2_HOST}" >> $GITHUB_ENV
+          echo "EC2_SSH_KEY=${EC2_SSH_KEY}" >> $GITHUB_ENV
+
+          echo "✅ EC2_HOST: $EC2_HOST"
+          echo "✅ SSH key prepared for deployment"
+
+      # ------------------- DEPLOY CONTAINERS ----------------
       - name: Deploy Containers on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: key.pem
+          key: ${{ env.EC2_SSH_KEY }}
           script: |
             set -e
             BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
@@ -163,17 +188,29 @@ jobs:
             FRONTEND_PORT="${{ needs.setup.outputs.frontend_port }}"
 
             echo "🚀 Deploying ${ENVIRONMENT} environment"
+            echo "Build Tag: ${BUILD_TAG}"
+            echo "Container Prefix: ${CONTAINER_PREFIX}"
+            echo "Backend Port: ${BACKEND_PORT}"
+            echo "Frontend Port: ${FRONTEND_PORT}"
 
             # Backend Deployment
+            echo "Deploying Backend..."
             sudo docker stop ${CONTAINER_PREFIX}-backend || true
             sudo docker rm ${CONTAINER_PREFIX}-backend || true
             sudo docker run -d -p ${BACKEND_PORT}:5000 --name ${CONTAINER_PREFIX}-backend --restart unless-stopped -e NODE_ENV=${ENVIRONMENT} backend-app:${BUILD_TAG}
             sleep 10
 
             # Frontend Deployment
+            echo "Deploying Frontend..."
             sudo docker stop ${CONTAINER_PREFIX}-frontend || true
             sudo docker rm ${CONTAINER_PREFIX}-frontend || true
             sudo docker run -d -p ${FRONTEND_PORT}:80 --name ${CONTAINER_PREFIX}-frontend --restart unless-stopped -e ENVIRONMENT=${ENVIRONMENT} frontend-app:${BUILD_TAG}
             sleep 10
 
-            echo "🎉 Deployment completed!"
+            # Verification
+            echo "Verifying deployments..."
+            sudo docker ps | grep ${CONTAINER_PREFIX}
+
+            echo "🎉 Deployment completed successfully!"
+            echo "Backend running on port: ${BACKEND_PORT}"
+            echo "Frontend running on port: ${FRONTEND_PORT}"
