@@ -61,7 +61,7 @@ jobs:
       - name: Fetch EC2 SSH Key from Secrets Manager
         id: fetch_ssh
         run: |
-          echo "🔑 Fetching EC2 SSH Key..."
+          echo " Fetching EC2 SSH Key..."
           SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav/dev/secret" \
             --query SecretString \
