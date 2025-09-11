@@ -124,7 +124,7 @@ jobs:
     if: needs.setup.outputs.environment != 'unknown'
     environment: 
       name: ${{ needs.setup.outputs.environment }}
-      url: http://${{ secrets.EC2_HOST }}:${{ needs.setup.outputs.frontend_port }}
+      
     steps:
       - name: Deploy Containers on EC2
         uses: appleboy/ssh-action@v1.0.0
