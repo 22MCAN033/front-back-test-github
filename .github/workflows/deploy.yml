@@ -206,7 +206,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ env.SSH_KEY }}
           script: |
-            echo "🧹 Cleaning up old Docker images..."
+            echo " Cleaning up old Docker images..."
             sudo docker images backend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi backend-app:{} || true
             sudo docker images frontend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi frontend-app:{} || true
             sudo docker image prune -f
