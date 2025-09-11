@@ -11,7 +11,6 @@ on:
       - dev
 
 jobs:
-  # ------------------- SETUP PHASE --------------
   setup:
     name: Determine Environment & Configuration
     runs-on: ubuntu-latest
@@ -26,29 +25,23 @@ jobs:
         run: |
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           echo "Branch: $BRANCH_NAME"
-          
+
           if [[ "$BRANCH_NAME" == "main" ]]; then
             echo "environment=production" >> $GITHUB_OUTPUT
-            echo "backend_port=5000" >> $GITHUB_OUTPUT
-            echo "frontend_port=3000" >> $GITHUB_OUTPUT
+            echo "backend_port=${{ secrets.PROD_BACKEND_PORT }}" >> $GITHUB_OUTPUT
+            echo "frontend_port=${{ secrets.PROD_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
             echo "container_prefix=prod" >> $GITHUB_OUTPUT
-            echo "🚀 Deploying to PRODUCTION environment"
-
           elif [[ "$BRANCH_NAME" == "dev" ]]; then
             echo "environment=development" >> $GITHUB_OUTPUT
-            echo "backend_port=5001" >> $GITHUB_OUTPUT
-            echo "frontend_port=3001" >> $GITHUB_OUTPUT
+            echo "backend_port=${{ secrets.DEV_BACKEND_PORT }}" >> $GITHUB_OUTPUT
+            echo "frontend_port=${{ secrets.DEV_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
             echo "container_prefix=dev" >> $GITHUB_OUTPUT
-            echo "🧪 Deploying to DEVELOPMENT environment"
-
           else
             echo "environment=unknown" >> $GITHUB_OUTPUT
             echo "backend_port=0" >> $GITHUB_OUTPUT
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
-            echo "⚠️ Branch not recognized, skipping deploy"
-  
-  # ------------------- BUILD PHASE --------------
+
   build:
     name: Build Docker Images on EC2
     runs-on: ubuntu-latest
@@ -72,13 +65,11 @@ jobs:
             --secret-id "vaibhav/dev/secret" \
             --query SecretString \
             --output text)
-          
-          # Extract, fix newlines, and save key
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $RUNNER_TEMP/ssh_key.pem
           chmod 600 $RUNNER_TEMP/ssh_key.pem
-          
-          # Export the key path for actions
-          echo "SSH_KEY_PATH=$RUNNER_TEMP/ssh_key.pem" >> $GITHUB_ENV
+          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
+          cat $RUNNER_TEMP/ssh_key.pem >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Set Build Variables
         id: vars
@@ -93,7 +84,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ env.SSH_KEY }}
           source: "."
           target: "/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
@@ -105,7 +96,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ env.SSH_KEY }}
           script: |
             set -ex
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
@@ -116,7 +107,7 @@ jobs:
             echo "${BUILD_TAG}" > ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
             echo "${ENVIRONMENT}" > ~/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
-            echo "🏗️  Building Backend..."
+            echo "🏗️  Building Backend (root Dockerfile)..."
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t backend-app:${BUILD_TAG} .
 
             echo "🏗️  Building Frontend..."
@@ -125,7 +116,6 @@ jobs:
 
             echo "✅ Build completed"
 
-  # ------------------- DEPLOY PHASE --------------
   deploy:
     name: Deploy to ${{ needs.setup.outputs.environment }}
     runs-on: ubuntu-latest
@@ -146,7 +136,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ env.SSH_KEY }}
           script: |
             set -ex
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
@@ -189,7 +179,6 @@ jobs:
             sudo docker ps | grep ${CONTAINER_PREFIX}
             echo "🎉 Deployment completed successfully!"
 
-  # ------------------- CLEANUP PHASE --------------
   cleanup:
     name: Cleanup Old Images
     runs-on: ubuntu-latest
@@ -201,7 +190,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "🧹 Cleaning up old Docker images..."
             
