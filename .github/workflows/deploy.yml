@@ -62,12 +62,14 @@ jobs:
         id: fetch_ssh
         run: |
           echo "🔑 Fetching EC2 SSH Key..."
-          aws secretsmanager get-secret-value \
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav/dev/secret" \
             --query SecretString \
-            --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
+            --output text)
+          echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
           chmod 600 $HOME/ssh_key.pem
           echo "✅ SSH key saved to $HOME/ssh_key.pem"
+          ls -l $HOME/ssh_key.pem
           head -1 $HOME/ssh_key.pem
           tail -1 $HOME/ssh_key.pem
 
@@ -84,7 +86,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key_path: $HOME/ssh_key.pem
+          key_path: $HOME/ssh_key.pem   # ✅ Corrected path
           source: "."
           target: "/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
@@ -96,7 +98,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key_path: $HOME/ssh_key.pem
+          key_path: $HOME/ssh_key.pem   # ✅ Corrected path
           script: |
             set -ex
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
@@ -135,10 +137,11 @@ jobs:
       - name: Fetch EC2 SSH Key for Deploy
         run: |
           echo "🔑 Fetching EC2 SSH Key for deployment..."
-          aws secretsmanager get-secret-value \
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav/dev/secret" \
             --query SecretString \
-            --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
+            --output text)
+          echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
           chmod 600 $HOME/ssh_key.pem
           echo "✅ SSH key ready for deployment"
 
@@ -147,7 +150,7 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key_path: $HOME/ssh_key.pem
+          key_path: $HOME/ssh_key.pem   # ✅ Corrected path
           script: |
             set -ex
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
@@ -155,24 +158,24 @@ jobs:
 
             if [[ "$BRANCH_NAME" == "main" ]]; then
               ENVIRONMENT="production"
-              BACKEND_PORT=${{ secrets.PROD_BACKEND_PORT }}
-              FRONTEND_PORT=${{ secrets.PROD_FRONTEND_PORT }}
               CONTAINER_PREFIX="prod"
             elif [[ "$BRANCH_NAME" == "dev" ]]; then
               ENVIRONMENT="development"
-              BACKEND_PORT=${{ secrets.DEV_BACKEND_PORT }}
-              FRONTEND_PORT=${{ secrets.DEV_FRONTEND_PORT }}
               CONTAINER_PREFIX="dev"
             else
               echo "❌ Unknown branch, skipping deploy."
               exit 0
             fi
 
+            BACKEND_PORT=${{ needs.setup.outputs.backend_port }}
+            FRONTEND_PORT=${{ needs.setup.outputs.frontend_port }}
             BUILD_TAG=$(cat ~/build_tag_${CONTAINER_PREFIX}.txt)
 
             echo "🚀 Deploying ${ENVIRONMENT} environment"
             echo "Build Tag: ${BUILD_TAG}"
             echo "Container Prefix: ${CONTAINER_PREFIX}"
+            echo "Backend Port: ${BACKEND_PORT}"
+            echo "Frontend Port: ${FRONTEND_PORT}"
 
             echo "Deploying Backend..."
             sudo docker stop ${CONTAINER_PREFIX}-backend || true
