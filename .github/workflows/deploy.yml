@@ -41,7 +41,6 @@ jobs:
             echo "backend_port=0" >> $GITHUB_OUTPUT
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
-          fi
 
   build:
     name: Build Docker Images on EC2
