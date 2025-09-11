@@ -62,25 +62,25 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: eu-north-1
 
       - name: Fetch EC2 Secrets from AWS Secrets Manager
         id: fetch_secrets
         run: |
-          echo "Fetching secrets..."
-          export EC2_HOST=$(aws secretsmanager get-secret-value \
+          echo "Fetching secrets from AWS Secrets Manager..."
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id vaibhav-secret \
-            --query 'SecretString' \
-            --output text | jq -r .EC2_HOST)
+            --query SecretString \
+            --output text)
           
-          export EC2_SSH_KEY=$(aws secretsmanager get-secret-value \
-            --secret-id vaibhav-secret \
-            --query 'SecretString' \
-            --output text | jq -r .EC2_SSH_KEY)
+          # Export as GitHub environment variables
+          echo "EC2_HOST=$(echo $SECRET_JSON | jq -r .EC2_HOST)" >> $GITHUB_ENV
+          echo "EC2_SSH_KEY=$(echo $SECRET_JSON | jq -r .EC2_SSH_KEY)" >> $GITHUB_ENV
 
-          # Export to GitHub environment
-          echo "EC2_HOST=${EC2_HOST}" >> $GITHUB_ENV
-          echo "EC2_SSH_KEY=${EC2_SSH_KEY}" >> $GITHUB_ENV
+      - name: Prepare SSH Key
+        run: |
+          echo -e "${EC2_SSH_KEY}" > key.pem
+          chmod 600 key.pem
 
       - name: Set Build Variables
         id: vars
@@ -99,7 +99,7 @@ jobs:
         with:
           host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.EC2_SSH_KEY }}
+          key: key.pem
           source: "."
           target: "~/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
@@ -109,7 +109,7 @@ jobs:
         with:
           host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.EC2_SSH_KEY }}
+          key: key.pem
           script: |
             set -e
             cd ~/app-${{ needs.setup.outputs.container_prefix }}
@@ -142,7 +142,7 @@ jobs:
         with:
           host: ${{ env.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ env.EC2_SSH_KEY }}
+          key: key.pem
           script: |
             set -e
             BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
