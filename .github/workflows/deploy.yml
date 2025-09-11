@@ -95,6 +95,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: $HOME/EC2_SSH_KEY.pem
+          ssh_args: "-vvv"
           script: |
             set -e
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
@@ -146,6 +147,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: $HOME/EC2_SSH_KEY.pem
+          ssh_args: "-vvv"
           script: |
             set -e
             BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
