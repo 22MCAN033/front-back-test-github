@@ -32,7 +32,7 @@ jobs:
           
           SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id vaibhav-secret \
-            --region us-east-1 \
+            --region eu-north-1 \
             --query SecretString \
             --output text)
           
