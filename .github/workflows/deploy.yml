@@ -142,14 +142,17 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ env.SSH_KEY }}
+          envs: GITHUB_REF_NAME   # 👈 pass branch name into EC2
           script: |
             set -ex
             APP_DIR=/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
             CONTAINER_PREFIX=${{ needs.setup.outputs.container_prefix }}
-  
+      
             BUILD_TAG=$(cat $APP_DIR/build_tag_${CONTAINER_PREFIX}.txt)
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
-  
+      
+            echo "Branch detected: ${GITHUB_REF_NAME}"
+      
             # Branch based ports
             if [ "${GITHUB_REF_NAME}" = "main" ]; then
               export BACKEND_PORT=${{ secrets.PROD_BACKEND_PORT }}
@@ -161,9 +164,9 @@ jobs:
               echo "❌ Unknown branch: ${GITHUB_REF_NAME}"
               exit 1
             fi
-  
+      
             echo "🚀 Deploying containers on ports Backend:${BACKEND_PORT} Frontend:${FRONTEND_PORT}..."
-  
+      
             # Backend
             sudo docker stop ${CONTAINER_PREFIX}-backend || true
             sudo docker rm ${CONTAINER_PREFIX}-backend || true
@@ -172,7 +175,7 @@ jobs:
               --restart unless-stopped \
               -e NODE_ENV=${ENVIRONMENT} \
               backend-app:${BUILD_TAG}
-  
+      
             # Frontend
             sudo docker stop ${CONTAINER_PREFIX}-frontend || true
             sudo docker rm ${CONTAINER_PREFIX}-frontend || true
