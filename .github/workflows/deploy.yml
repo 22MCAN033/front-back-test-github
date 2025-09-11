@@ -67,7 +67,7 @@ jobs:
             --output text)
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $RUNNER_TEMP/ssh_key.pem
           chmod 600 $RUNNER_TEMP/ssh_key.pem
-          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
+          echo "SSH_KEY<<'EOF'" >> $GITHUB_ENV
           cat $RUNNER_TEMP/ssh_key.pem >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
