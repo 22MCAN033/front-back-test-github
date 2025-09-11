@@ -101,7 +101,7 @@ jobs:
             echo "${BUILD_TAG}" > $APP_DIR/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
             echo "${ENVIRONMENT}" > $APP_DIR/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
-            echo "🏗️ Building Backend..."
+            echo "🏗 Building Backend..."
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t backend-app:${BUILD_TAG} .
 
             echo "🏗️ Building Frontend..."
