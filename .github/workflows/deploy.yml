@@ -21,7 +21,7 @@ jobs:
           echo "Building backend image..."
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
           echo "BACKEND_BUILD_TAG=${BUILD_TAG}" > ../backend_build_tag.txt
-          echo "✅ Backend build completed successfully"
+          echo " Backend build completed successfully"
       - name: Build Frontend Docker Image (Static HTML with Nginx)
         run: |
           cd frontend
@@ -30,7 +30,7 @@ jobs:
           echo "Building frontend (static HTML) image..."
           docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
           echo "FRONTEND_BUILD_TAG=${BUILD_TAG}" > ../frontend_build_tag.txt
-          echo "✅ Frontend build completed successfully"
+          echo " Frontend build completed successfully"
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -57,32 +57,32 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             # ------------------- PREPARE EC2 -------------------
-            echo "🔹 Cleaning old app directory..."
+            echo " Cleaning old app directory..."
             rm -rf ~/app
             mkdir -p ~/app
             cd ~/app
             # Clone repository
-            echo "📥 Cloning repository..."
+            echo " Cloning repository..."
             git clone https://github.com/${{ github.repository }}.git .
             # Generate build tag
             BUILD_TAG="build-${{ github.run_id }}"
             BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
-            echo "🏗️ Starting deployment with Build Tag: ${BUILD_TAG}"
+            echo " Starting deployment with Build Tag: ${BUILD_TAG}"
 
             # ------------------- BACKEND DEPLOYMENT -------------------
-            echo "🚀 Deploying Backend..."
+            echo " Deploying Backend..."
             cd ~/app/backend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t backend-app:${BUILD_TAG} .
             sudo docker stop backend 2>/dev/null || true
             sudo docker rm backend 2>/dev/null || true
             sudo docker run -d -p 5000:5000 --name backend --restart unless-stopped backend-app:${BUILD_TAG}
-            echo "✅ Backend deployed successfully"
+            echo "Backend deployed successfully"
 
             # ------------------- FRONTEND DEPLOYMENT (STATIC HTML) -------------------
-            echo "🚀 Deploying Frontend (Static HTML)..."
+            echo " Deploying Frontend (Static HTML)..."
             cd ~/app/frontend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} -t frontend-app:${BUILD_TAG} .
             sudo docker stop frontend 2>/dev/null || true
             sudo docker rm frontend 2>/dev/null || true
             sudo docker run -d -p 3000:80 --name frontend --restart unless-stopped frontend-app:${BUILD_TAG}
-            echo "✅ Frontend deployed successfully"
+            echo " Frontend deployed successfully"
