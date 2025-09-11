@@ -74,13 +74,14 @@ jobs:
             --output text)
           
           # Export as GitHub environment variables
-          echo "EC2_HOST=$(echo $SECRET_JSON | jq -r .EC2_HOST)" >> $GITHUB_ENV
-          echo "EC2_SSH_KEY=$(echo $SECRET_JSON | jq -r .EC2_SSH_KEY)" >> $GITHUB_ENV
+          echo "EC2_HOST=$(echo "$SECRET_JSON" | jq -r .EC2_HOST)" >> $GITHUB_ENV
+          echo "EC2_SSH_KEY=$(echo "$SECRET_JSON" | jq -r .EC2_SSH_KEY)" >> $GITHUB_ENV
 
       - name: Prepare SSH Key
         run: |
-          echo -e "${EC2_SSH_KEY}" > key.pem
+          echo "$EC2_SSH_KEY" > key.pem
           chmod 600 key.pem
+          echo "✅ SSH key prepared with proper permissions"
 
       - name: Set Build Variables
         id: vars
