@@ -11,7 +11,7 @@ on:
       - dev
 
 jobs:
-  # ------------------- SETUP PHASE ----------------
+  # ------------------- SETUP PHASE ---------------
   setup:
     name: Determine Environment & Configuration
     runs-on: ubuntu-latest
