@@ -119,6 +119,7 @@ jobs:
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav/dev/secret" \
+            --region eu-north-1 \
             --query SecretString \
             --output text)
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $RUNNER_TEMP/ssh_key.pem
@@ -166,6 +167,7 @@ jobs:
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav/dev/secret" \
+            --region eu-north-1 \
             --query SecretString \
             --output text)
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $RUNNER_TEMP/ssh_key.pem
