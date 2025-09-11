@@ -101,15 +101,23 @@ jobs:
             # ------------------- BACKEND BUILD -------------------
             echo "🏗️  Building Backend..."
             
-            # Check if Dockerfile exists
+            # Check if backend directory exists
+            if [ ! -d "backend" ]; then
+              echo "❌ Backend directory not found"
+              exit 1
+            fi
+            
+            cd backend
+            
+            # Check if Dockerfile exists in backend directory
             if [ ! -f "Dockerfile" ]; then
-              echo "❌ Dockerfile not found in $(pwd)"
+              echo "❌ Backend Dockerfile not found in $(pwd)"
               echo "Available files:"
               ls -la
               exit 1
             fi
             
-            echo "✅ Dockerfile found, building backend..."
+            echo "✅ Backend Dockerfile found, building backend..."
             sudo docker build --no-cache \
               --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
               --build-arg ENVIRONMENT=${ENVIRONMENT} \
@@ -117,6 +125,9 @@ jobs:
                 echo "❌ Backend build failed"
                 exit 1
               }
+            
+            # Go back to root directory
+            cd ..
 
             # Verify backend image was created
             if sudo docker images | grep -q "backend-app.*${BUILD_TAG}"; then
