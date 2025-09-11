@@ -64,6 +64,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
+      # ------------------- FETCH SECRETS ----------------
       - name: Fetch EC2 Secrets from AWS Secrets Manager
         id: fetch_secrets
         run: |
@@ -72,17 +73,26 @@ jobs:
             --secret-id vaibhav-secret \
             --query SecretString \
             --output text)
-          
-          # Export as GitHub environment variables
-          echo "EC2_HOST=$(echo $SECRET_JSON | jq -r .EC2_HOST)" >> $GITHUB_ENV
-          echo "EC2_SSH_KEY=$(echo $SECRET_JSON | jq -r .EC2_SSH_KEY)" >> $GITHUB_ENV
 
+          # Export as GitHub environment variables
+          EC2_HOST=$(echo $SECRET_JSON | jq -r .EC2_HOST)
+          EC2_SSH_KEY=$(echo $SECRET_JSON | jq -r .EC2_SSH_KEY)
+
+          echo "EC2_HOST=${EC2_HOST}" >> $GITHUB_ENV
+          echo "EC2_SSH_KEY=${EC2_SSH_KEY}" >> $GITHUB_ENV
+
+          # Debug output (truncated SSH key for safety)
+          echo "✅ EC2_HOST: $EC2_HOST"
+          echo "✅ EC2_SSH_KEY (first 30 chars): ${EC2_SSH_KEY:0:30}..."
+
+      # ------------------- PREPARE SSH KEY ----------------
       - name: Prepare SSH Key
         run: |
           echo "$EC2_SSH_KEY" > key.pem
           chmod 600 key.pem
           echo "✅ SSH key prepared with proper permissions"
 
+      # ------------------- SET BUILD VARIABLES ----------------
       - name: Set Build Variables
         id: vars
         run: |
@@ -95,6 +105,7 @@ jobs:
           echo "Build Tag: ${BUILD_TAG}"
           echo "Environment: ${{ needs.setup.outputs.environment }}"
 
+      # ------------------- SEND SOURCE TO EC2 ----------------
       - name: Send Source Code to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -105,6 +116,7 @@ jobs:
           target: "~/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
 
+      # ------------------- BUILD DOCKER ON EC2 ----------------
       - name: Build Docker Images on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -117,16 +129,14 @@ jobs:
             BUILD_TAG="${{ env.BUILD_TAG }}"
             BUILD_TIMESTAMP="${{ env.BUILD_TIMESTAMP }}"
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
-            
-            # Backend Build
+
             echo "🏗️  Building Backend..."
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t backend-app:${BUILD_TAG} .
-            
-            # Frontend Build
+
             echo "🏗️  Building Frontend..."
             cd frontend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t frontend-app:${BUILD_TAG} .
-            
+
             echo "✅ Build completed"
 
   # ------------------- DEPLOY PHASE ----------------
@@ -153,6 +163,7 @@ jobs:
             FRONTEND_PORT="${{ needs.setup.outputs.frontend_port }}"
 
             echo "🚀 Deploying ${ENVIRONMENT} environment"
+
             # Backend Deployment
             sudo docker stop ${CONTAINER_PREFIX}-backend || true
             sudo docker rm ${CONTAINER_PREFIX}-backend || true
