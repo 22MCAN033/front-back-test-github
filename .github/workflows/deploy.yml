@@ -42,6 +42,8 @@ jobs:
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
 
+          echo ""  # <-- Ensure newline at the end
+
   build:
     name: Build Docker Images on EC2
     runs-on: ubuntu-latest
@@ -78,6 +80,7 @@ jobs:
           BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "BUILD_TAG=${BUILD_TAG}" >> $GITHUB_ENV
           echo "BUILD_TIMESTAMP=${BUILD_TIMESTAMP}" >> $GITHUB_ENV
+          echo ""
 
       - name: Send Source Code to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -108,13 +111,15 @@ jobs:
             echo "${ENVIRONMENT}" > ~/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
             echo "🏗️  Building Backend..."
+            cd backend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t backend-app:${BUILD_TAG} .
 
             echo "🏗️  Building Frontend..."
-            cd frontend
+            cd ../frontend
             sudo docker build --no-cache --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} --build-arg ENVIRONMENT=${ENVIRONMENT} -t frontend-app:${BUILD_TAG} .
 
             echo "✅ Build completed"
+            echo ""
 
   deploy:
     name: Deploy to ${{ needs.setup.outputs.environment }}
@@ -178,6 +183,7 @@ jobs:
             echo "Verifying deployments..."
             sudo docker ps | grep ${CONTAINER_PREFIX}
             echo "🎉 Deployment completed successfully!"
+            echo ""
 
   cleanup:
     name: Cleanup Old Images
@@ -193,15 +199,12 @@ jobs:
           key: ${{ env.SSH_KEY }}
           script: |
             echo "🧹 Cleaning up old Docker images..."
-            
             sudo docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}" | grep -E "(backend-app|frontend-app|REPOSITORY)"
             
             echo "🗑️  Removing old images (keeping latest 2 per app)..."
-            
             sudo docker images backend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi backend-app:{} 2>/dev/null || echo "No old backend images to remove"
-            
             sudo docker images frontend-app --format "{{.Tag}}" | tail -n +3 | xargs -r -I {} sudo docker rmi frontend-app:{} 2>/dev/null || echo "No old frontend images to remove"
             
             sudo docker image prune -f
-            
             echo "✅ Cleanup completed!"
+            echo ""
