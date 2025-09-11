@@ -41,7 +41,6 @@ jobs:
             echo "backend_port=0" >> $GITHUB_OUTPUT
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
-          fi
 
   build:
     name: Build Docker Images on EC2
@@ -63,6 +62,7 @@ jobs:
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav/dev/secret" \
+            --region eu-north-1 \
             --query SecretString \
             --output text)
           echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $RUNNER_TEMP/ssh_key.pem
@@ -92,7 +92,6 @@ jobs:
             set -ex
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
 
-            # Define variables inside SSH session
             BUILD_TAG="${{ needs.setup.outputs.container_prefix }}-${{ github.run_id }}"
             BUILD_TIMESTAMP=$(date +%Y%m%d%H%M%S)
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
@@ -115,6 +114,13 @@ jobs:
     environment:
       name: ${{ needs.setup.outputs.environment }}
     steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
       - name: Fetch EC2 SSH Key
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
@@ -163,6 +169,13 @@ jobs:
     needs: [setup, deploy]
     if: always()
     steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
       - name: Fetch EC2 SSH Key
         run: |
           SECRET_JSON=$(aws secretsmanager get-secret-value \
