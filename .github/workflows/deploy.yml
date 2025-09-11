@@ -85,6 +85,8 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e  # Exit on any error
+            
             cd ~/app-${{ needs.setup.outputs.container_prefix }}
             BUILD_TAG="${{ env.BUILD_TAG }}"
             BUILD_TIMESTAMP="${{ env.BUILD_TIMESTAMP }}"
@@ -92,27 +94,86 @@ jobs:
 
             echo "🔨 Building images for ${ENVIRONMENT} environment"
             echo "📦 Build Tag: ${BUILD_TAG}"
+            echo "📂 Current directory: $(pwd)"
+            echo "📄 Files in directory:"
+            ls -la
 
             # ------------------- BACKEND BUILD -------------------
             echo "🏗️  Building Backend..."
+            
+            # Check if Dockerfile exists
+            if [ ! -f "Dockerfile" ]; then
+              echo "❌ Dockerfile not found in $(pwd)"
+              echo "Available files:"
+              ls -la
+              exit 1
+            fi
+            
+            echo "✅ Dockerfile found, building backend..."
             sudo docker build --no-cache \
               --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
               --build-arg ENVIRONMENT=${ENVIRONMENT} \
-              -t backend-app:${BUILD_TAG} .
+              -t backend-app:${BUILD_TAG} . || {
+                echo "❌ Backend build failed"
+                exit 1
+              }
+
+            # Verify backend image was created
+            if sudo docker images | grep -q "backend-app.*${BUILD_TAG}"; then
+              echo "✅ Backend image created successfully"
+            else
+              echo "❌ Backend image not found after build"
+              sudo docker images | grep backend-app || echo "No backend-app images found"
+              exit 1
+            fi
 
             # ------------------- FRONTEND BUILD -------------------
             echo "🏗️  Building Frontend..."
+            
+            # Check if frontend directory exists
+            if [ ! -d "frontend" ]; then
+              echo "❌ Frontend directory not found"
+              exit 1
+            fi
+            
             cd frontend
+            
+            # Check if frontend Dockerfile exists
+            if [ ! -f "Dockerfile" ]; then
+              echo "❌ Frontend Dockerfile not found in $(pwd)"
+              echo "Available files:"
+              ls -la
+              exit 1
+            fi
+            
+            echo "✅ Frontend Dockerfile found, building frontend..."
             sudo docker build --no-cache \
               --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
               --build-arg ENVIRONMENT=${ENVIRONMENT} \
-              -t frontend-app:${BUILD_TAG} .
+              -t frontend-app:${BUILD_TAG} . || {
+                echo "❌ Frontend build failed"
+                exit 1
+              }
+
+            # Verify frontend image was created
+            if sudo docker images | grep -q "frontend-app.*${BUILD_TAG}"; then
+              echo "✅ Frontend image created successfully"
+            else
+              echo "❌ Frontend image not found after build"
+              sudo docker images | grep frontend-app || echo "No frontend-app images found"
+              exit 1
+            fi
+
+            # Go back to root directory
+            cd ..
 
             # Store build info
             echo "${BUILD_TAG}" > ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
             echo "${ENVIRONMENT}" > ~/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
             echo "✅ Build completed successfully!"
+            echo "📋 Final image verification:"
+            sudo docker images | grep -E "(backend-app|frontend-app)" | grep ${BUILD_TAG}
 
   # ------------------- DEPLOY PHASE ----------------
   deploy:
@@ -130,6 +191,8 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e  # Exit on any error
+            
             BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
             ENVIRONMENT=$(cat ~/environment_${{ needs.setup.outputs.container_prefix }}.txt)
             CONTAINER_PREFIX="${{ needs.setup.outputs.container_prefix }}"
@@ -139,6 +202,24 @@ jobs:
             echo "🚀 Deploying to ${ENVIRONMENT} environment"
             echo "📦 Build Tag: ${BUILD_TAG}"
             echo "🏷️  Container Prefix: ${CONTAINER_PREFIX}"
+
+            # Verify images exist before deployment
+            echo "🔍 Verifying Docker images exist..."
+            if ! sudo docker images | grep -q "backend-app.*${BUILD_TAG}"; then
+              echo "❌ Backend image backend-app:${BUILD_TAG} not found"
+              echo "Available backend images:"
+              sudo docker images | grep backend-app || echo "No backend-app images found"
+              exit 1
+            fi
+            
+            if ! sudo docker images | grep -q "frontend-app.*${BUILD_TAG}"; then
+              echo "❌ Frontend image frontend-app:${BUILD_TAG} not found"
+              echo "Available frontend images:"
+              sudo docker images | grep frontend-app || echo "No frontend-app images found"
+              exit 1
+            fi
+            
+            echo "✅ Both images verified"
 
             # ------------------- BACKEND DEPLOYMENT -------------------
             echo "🔄 Deploying Backend on port ${BACKEND_PORT}..."
@@ -150,7 +231,10 @@ jobs:
               --name ${CONTAINER_PREFIX}-backend \
               --restart unless-stopped \
               -e NODE_ENV=${ENVIRONMENT} \
-              backend-app:${BUILD_TAG}
+              backend-app:${BUILD_TAG} || {
+                echo "❌ Failed to start backend container"
+                exit 1
+              }
 
             sleep 10
             if sudo docker ps | grep -q "${CONTAINER_PREFIX}-backend"; then
@@ -171,7 +255,10 @@ jobs:
               --name ${CONTAINER_PREFIX}-frontend \
               --restart unless-stopped \
               -e ENVIRONMENT=${ENVIRONMENT} \
-              frontend-app:${BUILD_TAG}
+              frontend-app:${BUILD_TAG} || {
+                echo "❌ Failed to start frontend container"
+                exit 1
+              }
 
             sleep 10
             if sudo docker ps | grep -q "${CONTAINER_PREFIX}-frontend"; then
