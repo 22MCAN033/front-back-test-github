@@ -62,12 +62,10 @@ jobs:
         id: fetch_ssh
         run: |
           echo "Fetching EC2 SSH Key..."
-          export EC2_SSH_KEY=$(aws secretsmanager get-secret-value \
+          aws secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
-            --query "SecretString" \
-            --output text)
-          
-          echo "$EC2_SSH_KEY" > $HOME/EC2_SSH_KEY.pem
+            --query SecretString \
+            --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/EC2_SSH_KEY.pem
           chmod 600 $HOME/EC2_SSH_KEY.pem
           echo "✅ SSH key prepared as $HOME/EC2_SSH_KEY.pem"
 
@@ -133,11 +131,10 @@ jobs:
 
       - name: Fetch EC2 SSH Key for Deploy
         run: |
-          export EC2_SSH_KEY=$(aws secretsmanager get-secret-value \
+          aws secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
-            --query "SecretString" \
-            --output text)
-          echo "$EC2_SSH_KEY" > $HOME/EC2_SSH_KEY.pem
+            --query SecretString \
+            --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/EC2_SSH_KEY.pem
           chmod 600 $HOME/EC2_SSH_KEY.pem
           echo "✅ SSH key ready for deployment"
 
