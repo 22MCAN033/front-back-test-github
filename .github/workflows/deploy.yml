@@ -58,17 +58,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Fetch EC2 SSH Key from Secrets Manager (Verbose)
+      - name: Fetch EC2 SSH Key from Secrets Manager
         id: fetch_ssh
         run: |
-          set -x
-          echo "🔑 Fetching EC2 SSH Key with verbose output..."
-          aws --debug secretsmanager get-secret-value \
+          echo "🔑 Fetching EC2 SSH Key..."
+          
+          # Get the secret and extract SSH key with proper newline handling
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
             --query SecretString \
-            --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/EC2_SSH_KEY.pem
-          chmod 600 $HOME/EC2_SSH_KEY.pem
-          echo "✅ SSH key prepared as $HOME/EC2_SSH_KEY.pem"
+            --output text)
+          
+          # Extract SSH key and handle newlines properly  
+          echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
+          chmod 600 $HOME/ssh_key.pem
+          
+          # Verify the key format
+          echo "✅ SSH key saved to $HOME/ssh_key.pem"
+          head -1 $HOME/ssh_key.pem
+          tail -1 $HOME/ssh_key.pem
 
       - name: Set Build Variables
         id: vars
@@ -78,26 +86,24 @@ jobs:
           echo "BUILD_TAG=${BUILD_TAG}" >> $GITHUB_ENV
           echo "BUILD_TIMESTAMP=${BUILD_TIMESTAMP}" >> $GITHUB_ENV
 
-      - name: Send Source Code to EC2 (Verbose)
+      - name: Send Source Code to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: $HOME/EC2_SSH_KEY.pem
+          key_path: $HOME/ssh_key.pem
           source: "."
           target: "/home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}"
           rm: true
           overwrite: true
-          strip_components: 0
           debug: true
 
-      - name: Build Docker Images on EC2 (Verbose)
+      - name: Build Docker Images on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: $HOME/EC2_SSH_KEY.pem
-          ssh_args: "-vvv"
+          key_path: $HOME/ssh_key.pem
           script: |
             set -ex
             cd /home/ubuntu/app-${{ needs.setup.outputs.container_prefix }}
@@ -105,6 +111,7 @@ jobs:
             BUILD_TIMESTAMP="${{ env.BUILD_TIMESTAMP }}"
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
 
+            # Store build info for deploy stage
             echo "${BUILD_TAG}" > ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt
             echo "${ENVIRONMENT}" > ~/environment_${{ needs.setup.outputs.container_prefix }}.txt
 
@@ -133,23 +140,28 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Fetch EC2 SSH Key for Deploy (Verbose)
+      - name: Fetch EC2 SSH Key for Deploy
         run: |
-          set -x
-          aws --debug secretsmanager get-secret-value \
+          echo "🔑 Fetching EC2 SSH Key for deployment..."
+          
+          # Get the secret and extract SSH key with proper newline handling
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
             --secret-id "vaibhav-secret" \
             --query SecretString \
-            --output text | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/EC2_SSH_KEY.pem
-          chmod 600 $HOME/EC2_SSH_KEY.pem
+            --output text)
+          
+          # Extract SSH key and handle newlines properly
+          echo "$SECRET_JSON" | jq -r '.EC2_SSH_KEY' | sed 's/\\n/\n/g' > $HOME/ssh_key.pem
+          chmod 600 $HOME/ssh_key.pem
+          
           echo "✅ SSH key ready for deployment"
 
-      - name: Deploy Containers on EC2 (Verbose)
+      - name: Deploy Containers on EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: $HOME/EC2_SSH_KEY.pem
-          ssh_args: "-vvv"
+          key_path: $HOME/ssh_key.pem
           script: |
             set -ex
             BUILD_TAG=$(cat ~/build_tag_${{ needs.setup.outputs.container_prefix }}.txt)
@@ -159,16 +171,26 @@ jobs:
             FRONTEND_PORT="${{ secrets.FRONTEND_PORT }}"
 
             echo "🚀 Deploying ${ENVIRONMENT} environment"
+            echo "Build Tag: ${BUILD_TAG}"
+            echo "Container Prefix: ${CONTAINER_PREFIX}"
 
+            # Backend Deployment
+            echo "Deploying Backend..."
             sudo docker stop ${CONTAINER_PREFIX}-backend || true
             sudo docker rm ${CONTAINER_PREFIX}-backend || true
             sudo docker run -d -p ${BACKEND_PORT}:5000 --name ${CONTAINER_PREFIX}-backend --restart unless-stopped -e NODE_ENV=${ENVIRONMENT} backend-app:${BUILD_TAG}
             sleep 10
 
+            # Frontend Deployment  
+            echo "Deploying Frontend..."
             sudo docker stop ${CONTAINER_PREFIX}-frontend || true
             sudo docker rm ${CONTAINER_PREFIX}-frontend || true
             sudo docker run -d -p ${FRONTEND_PORT}:80 --name ${CONTAINER_PREFIX}-frontend --restart unless-stopped -e ENVIRONMENT=${ENVIRONMENT} frontend-app:${BUILD_TAG}
             sleep 10
+
+            # Verification
+            echo "Verifying deployments..."
+            sudo docker ps | grep ${CONTAINER_PREFIX}
 
             echo "🎉 Deployment completed successfully!"
             echo "Backend running on port: ${BACKEND_PORT}"
