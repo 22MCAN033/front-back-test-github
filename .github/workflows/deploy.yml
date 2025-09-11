@@ -150,8 +150,17 @@ jobs:
             BUILD_TAG=$(cat $APP_DIR/build_tag_${CONTAINER_PREFIX}.txt)
             ENVIRONMENT="${{ needs.setup.outputs.environment }}"
   
-            BACKEND_PORT=${{ needs.setup.outputs.backend_port }}
-            FRONTEND_PORT=${{ needs.setup.outputs.frontend_port }}
+            # Branch based ports
+            if [ "${GITHUB_REF_NAME}" = "main" ]; then
+              export BACKEND_PORT=${{ secrets.PROD_BACKEND_PORT }}
+              export FRONTEND_PORT=${{ secrets.PROD_FRONTEND_PORT }}
+            elif [ "${GITHUB_REF_NAME}" = "dev" ]; then
+              export BACKEND_PORT=${{ secrets.DEV_BACKEND_PORT }}
+              export FRONTEND_PORT=${{ secrets.DEV_FRONTEND_PORT }}
+            else
+              echo "❌ Unknown branch: ${GITHUB_REF_NAME}"
+              exit 1
+            fi
   
             echo "🚀 Deploying containers on ports Backend:${BACKEND_PORT} Frontend:${FRONTEND_PORT}..."
   
@@ -172,6 +181,7 @@ jobs:
               --restart unless-stopped \
               -e ENVIRONMENT=${ENVIRONMENT} \
               frontend-app:${BUILD_TAG}
+
 
   cleanup:
     name: Cleanup Old Images
