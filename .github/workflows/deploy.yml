@@ -232,7 +232,7 @@ jobs:
         id: email_content
         run: |
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
-
+      
           if [[ "$BRANCH_NAME" == "main" ]]; then
             echo "SUBJECT=✅ CI/CD Deployment Completed - PRODUCTION" >> $GITHUB_ENV
             echo "BODY=CI/CD pipeline for branch 'main' completed successfully on PRODUCTION." >> $GITHUB_ENV
@@ -242,6 +242,7 @@ jobs:
           else
             echo "SUBJECT=⚠️ CI/CD Deployment Completed - UNKNOWN BRANCH" >> $GITHUB_ENV
             echo "BODY=CI/CD pipeline ran on an unknown branch: $BRANCH_NAME." >> $GITHUB_ENV
+
 
       - name: Send Email
         uses: dawidd6/action-send-mail@v3
