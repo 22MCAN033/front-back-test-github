@@ -43,7 +43,7 @@ jobs:
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
           fi
   prepare_environment:
-    name: Prepare .env files
+    name: Prepare environment files
     runs-on: ubuntu-latest
     needs: setup
     steps:
@@ -57,20 +57,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Create Frontend .env
-        run: |
-          echo "Creating .env file for frontend"
-          cd frontend
-          rm -f .env
-          ls -a
-          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+      # - name: Create Frontend .env
+      #   run: |
+      #     echo "Creating .env file for frontend"
+      #     cd frontend
+      #     rm -f .env
+      #     ls -a
+      #     if [ "${GITHUB_REF_NAME}" = "dev" ]; then
             
-            echo "REACT_APP_APP_NAME=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_REACT_APP_APP_NAME)" >> .env
-            echo "REACT_APP_BACKEND_URL=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_REACT_APP_BACKEND_URL)" >> .env
-          elif [ "${GITHUB_REF_NAME}" = "main" ]; then
-            echo "REACT_APP_BACKEND_URL=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_REACT_APP_BACKEND_URL)" >> .env
-            echo "REACT_APP_APP_NAME=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_REACT_APP_APP_NAME)" >> .env
-          fi
+      #       echo "REACT_APP_APP_NAME=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_REACT_APP_APP_NAME)" >> .env
+      #       echo "REACT_APP_BACKEND_URL=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_REACT_APP_BACKEND_URL)" >> .env
+      #     elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+      #       echo "REACT_APP_BACKEND_URL=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_REACT_APP_BACKEND_URL)" >> .env
+      #       echo "REACT_APP_APP_NAME=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_REACT_APP_APP_NAME)" >> .env
+      #     fi
 
       - name: Create Backend .env
         run: |
@@ -91,7 +91,7 @@ jobs:
         with:
           name: env-files
           path: |
-            frontend/.env
+            # frontend/.env
             backend/.env
           retention-days: 1
 
