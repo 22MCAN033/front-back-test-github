@@ -11,37 +11,37 @@ on:
       - dev
 
 jobs:
-  setup:
-    name: Determine Environment & Configuration
-    runs-on: ubuntu-latest
-    outputs:
-      environment: ${{ steps.config.outputs.environment }}
-      backend_port: ${{ steps.config.outputs.backend_port }}
-      frontend_port: ${{ steps.config.outputs.frontend_port }}
-      container_prefix: ${{ steps.config.outputs.container_prefix }}
-    steps:
-      - name: Set Environment Configuration
-        id: config
-        run: |
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          echo "Branch: $BRANCH_NAME"
+  # setup:
+  #   name: Determine Environment & Configuration
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     environment: ${{ steps.config.outputs.environment }}
+  #     backend_port: ${{ steps.config.outputs.backend_port }}
+  #     frontend_port: ${{ steps.config.outputs.frontend_port }}
+  #     container_prefix: ${{ steps.config.outputs.container_prefix }}
+  #   steps:
+  #     - name: Set Environment Configuration
+  #       id: config
+  #       run: |
+  #         BRANCH_NAME=${GITHUB_REF#refs/heads/}
+  #         echo "Branch: $BRANCH_NAME"
 
-          if [[ "$BRANCH_NAME" == "main" ]]; then
-            echo "environment=production" >> $GITHUB_OUTPUT
-            echo "backend_port=${{ secrets.PROD_BACKEND_PORT }}" >> $GITHUB_OUTPUT
-            echo "frontend_port=${{ secrets.PROD_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
-            echo "container_prefix=prod" >> $GITHUB_OUTPUT
-          elif [[ "$BRANCH_NAME" == "dev" ]]; then
-            echo "environment=development" >> $GITHUB_OUTPUT
-            echo "backend_port=${{ secrets.DEV_BACKEND_PORT }}" >> $GITHUB_OUTPUT
-            echo "frontend_port=${{ secrets.DEV_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
-            echo "container_prefix=dev" >> $GITHUB_OUTPUT
-          else
-            echo "environment=unknown" >> $GITHUB_OUTPUT
-            echo "backend_port=0" >> $GITHUB_OUTPUT
-            echo "frontend_port=0" >> $GITHUB_OUTPUT
-            echo "container_prefix=unknown" >> $GITHUB_OUTPUT
-          fi
+  #         if [[ "$BRANCH_NAME" == "main" ]]; then
+  #           echo "environment=production" >> $GITHUB_OUTPUT
+  #           echo "backend_port=${{ secrets.PROD_BACKEND_PORT }}" >> $GITHUB_OUTPUT
+  #           echo "frontend_port=${{ secrets.PROD_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
+  #           echo "container_prefix=prod" >> $GITHUB_OUTPUT
+  #         elif [[ "$BRANCH_NAME" == "dev" ]]; then
+  #           echo "environment=development" >> $GITHUB_OUTPUT
+  #           echo "backend_port=${{ secrets.DEV_BACKEND_PORT }}" >> $GITHUB_OUTPUT
+  #           echo "frontend_port=${{ secrets.DEV_FRONTEND_PORT }}" >> $GITHUB_OUTPUT
+  #           echo "container_prefix=dev" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "environment=unknown" >> $GITHUB_OUTPUT
+  #           echo "backend_port=0" >> $GITHUB_OUTPUT
+  #           echo "frontend_port=0" >> $GITHUB_OUTPUT
+  #           echo "container_prefix=unknown" >> $GITHUB_OUTPUT
+  #         fi
   prepare_environment:
     name: Prepare environment files
     runs-on: ubuntu-latest
