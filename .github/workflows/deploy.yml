@@ -79,8 +79,8 @@ jobs:
           rm -f .env
           ls -a
           if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            echo "DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_DATABASE_URL)" >> .env
-            echo "SECRET_KEY=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_SECRET_KEY)" >> .env
+            echo "NODE_ENV=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_NODE_ENV)" >> .env
+            echo "PORT=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_PORT)" >> .env
           elif [ "${GITHUB_REF_NAME}" = "main" ]; then
             echo "DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_DATABASE_URL)" >> .env
             echo "SECRET_KEY=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_SECRET_KEY)" >> .env
