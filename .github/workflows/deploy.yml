@@ -42,6 +42,60 @@ jobs:
             echo "frontend_port=0" >> $GITHUB_OUTPUT
             echo "container_prefix=unknown" >> $GITHUB_OUTPUT
           fi
+  prepare_environment:
+    name: Prepare .env files
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
+      - name: Create Frontend .env
+        run: |
+          echo "Creating .env file for frontend"
+          cd frontend
+          rm -f .env
+          ls -a
+          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            
+            echo "REACT_APP_APP_NAME=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_REACT_APP_APP_NAME)" >> .env
+            echo "REACT_APP_BACKEND_URL=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_REACT_APP_BACKEND_URL)" >> .env
+          elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "REACT_APP_BACKEND_URL=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_REACT_APP_BACKEND_URL)" >> .env
+            echo "REACT_APP_APP_NAME=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_REACT_APP_APP_NAME)" >> .env
+          fi
+
+      - name: Create Backend .env
+        run: |
+          echo "Creating .env file for backend"
+          cd backend
+          rm -f .env
+          ls -a
+          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            echo "DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_DATABASE_URL)" >> .env
+            echo "SECRET_KEY=$(aws secretsmanager get-secret-value --secret-id vaibhav/dev/secret --query SecretString --output text | jq -r .DEV_SECRET_KEY)" >> .env
+          elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "DATABASE_URL=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_DATABASE_URL)" >> .env
+            echo "SECRET_KEY=$(aws secretsmanager get-secret-value --secret-id prod/app/env --query SecretString --output text | jq -r .PROD_SECRET_KEY)" >> .env
+          fi
+
+      - name: Upload .env as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: env-files
+          path: |
+            frontend/.env
+            backend/.env
+          retention-days: 1
+
+
 
   build:
     name: Build Docker Images on EC2
