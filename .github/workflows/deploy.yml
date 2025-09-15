@@ -92,6 +92,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ env.SSH_KEY }}
+          envs: GITHUB_REF_NAME
           script: |
             set -ex
             APP_DIR=/home/ubuntu/app-${GITHUB_REF_NAME}
